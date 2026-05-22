@@ -4,35 +4,44 @@
  */
 import fs from "fs/promises";
 import path from "path";
+import { fileURLToPath } from "url";
 
-async function main() {
-  let input;
-  const { text: raw } = await readStdinBufferUtf8();
-
-  const parsed = parseAfterAgentResponseStdin(raw);
-  if (!parsed.ok) {
-    process.exit(0);
+async function writeHookRunLog(payload, workspaceRoot) {
+  const root =
+    workspaceRoot ||
+    normalizeCursorWindowsPath(process.env.CURSOR_PROJECT_DIR || "") ||
+    process.cwd();
+  const logPath = path.join(root, ".cursor", "hooks", "last-run.json");
+  try {
+    await fs.mkdir(path.dirname(logPath), { recursive: true });
+    await fs.writeFile(
+      logPath,
+      JSON.stringify({ ...payload, at: new Date().toISOString() }, null, 2),
+      "utf8",
+    );
+  } catch {
+    /* ignore */
   }
-  input = parsed.value;
+}
 
-  const conversationId = input.conversation_id;
-  const transcriptPath =
-    (input.transcript_path && input.transcript_path.trim()) ||
-    (process.env.CURSOR_TRANSCRIPT_PATH && process.env.CURSOR_TRANSCRIPT_PATH.trim()) ||
-    null;
-
-  if (!conversationId || !transcriptPath) {
-    process.exit(0);
-  }
-
-  const workspaceRoot = resolveWorkspaceRoot(input);
+/** 将单条转写导出到 workspaceRoot/chat/（Hook 与终端监听共用） */
+export async function exportSession({
+  conversationId,
+  transcriptPath,
+  workspaceRoot,
+  cursorVersion = "",
+}) {
   const chatDir = path.join(workspaceRoot, "chat");
   const safeId = sanitizeSegment(conversationId);
   let ymdPrefix;
   try {
     ymdPrefix = await getYyyymmddPrefixForSession(transcriptPath);
-  } catch {
-    process.exit(0);
+  } catch (e) {
+    return {
+      ok: false,
+      phase: "date_prefix_failed",
+      error: String(e?.message ?? e),
+    };
   }
   const destPath = path.join(chatDir, `${ymdPrefix}--${safeId}.md`);
 
@@ -42,31 +51,98 @@ async function main() {
       retries: 12,
       delayMs: 80,
     });
-  } catch {
-    process.exit(0);
+  } catch (e) {
+    return {
+      ok: false,
+      phase: "read_transcript_failed",
+      error: String(e?.message ?? e),
+    };
   }
 
   try {
     await fs.mkdir(chatDir, { recursive: true });
-  } catch {
-    process.exit(0);
+  } catch (e) {
+    return { ok: false, phase: "mkdir_failed", error: String(e?.message ?? e) };
   }
 
   try {
     const md = transcriptJsonlToExportMarkdown(buf.toString("utf8"), {
-      cursorVersion:
-        (input.cursor_version && String(input.cursor_version)) ||
-        process.env.CURSOR_VERSION ||
-        "",
+      cursorVersion: cursorVersion || "",
     });
     await writeFileStable(destPath, Buffer.from(md, "utf8"), {
       retries: 8,
       delayMs: 60,
     });
-  } catch {
-    /* ignore */
+    return {
+      ok: true,
+      phase: "ok",
+      dest_path: destPath,
+      conversation_id: conversationId,
+      transcript_path: transcriptPath,
+      workspace_root: workspaceRoot,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      phase: "write_failed",
+      dest_path: destPath,
+      error: String(e?.message ?? e),
+    };
+  }
+}
+
+async function main() {
+  let input;
+  const { text: raw } = await readStdinBufferUtf8();
+  await writeHookRunLog({ phase: "started", stdin_bytes: raw?.length ?? 0 });
+
+  const parsed = parseAfterAgentResponseStdin(raw);
+  if (!parsed.ok) {
+    await writeHookRunLog({
+      phase: "parse_failed",
+      error: parsed.error,
+      attempts: parsed.fallback_attempts,
+    });
+    process.exit(0);
+  }
+  input = parsed.value;
+
+  const conversationId =
+    (input.conversation_id && String(input.conversation_id).trim()) ||
+    (input.session_id && String(input.session_id).trim()) ||
+    null;
+  const transcriptPath = await resolveTranscriptPath(conversationId, {
+    transcriptPath:
+      (input.transcript_path && String(input.transcript_path).trim()) ||
+      (process.env.CURSOR_TRANSCRIPT_PATH &&
+        process.env.CURSOR_TRANSCRIPT_PATH.trim()) ||
+      null,
+  });
+
+  if (!conversationId || !transcriptPath) {
+    await writeHookRunLog(
+      {
+        phase: "missing_fields",
+        conversation_id: conversationId,
+        transcript_path: transcriptPath,
+        recovery: parsed.recovery ?? null,
+      },
+      resolveWorkspaceRoot(input),
+    );
+    process.exit(0);
   }
 
+  const workspaceRoot = resolveWorkspaceRoot(input);
+  const result = await exportSession({
+    conversationId,
+    transcriptPath,
+    workspaceRoot,
+    cursorVersion:
+      (input.cursor_version && String(input.cursor_version)) ||
+      process.env.CURSOR_VERSION ||
+      "",
+  });
+  await writeHookRunLog(result, workspaceRoot);
   process.exit(0);
 }
 
@@ -116,9 +192,52 @@ function formatYyyymmddAsiaShanghai(date) {
 
 function normalizeCursorWindowsPath(p) {
   const s = String(p).trim();
-  if (process.platform !== "win32" || !s) return s;
-  const m = s.match(/^\/+([A-Za-z]:\/(?:.*))$/);
-  return m ? m[1].replace(/\//g, "\\") : s;
+  if (!s) return s;
+  if (process.platform === "win32") {
+    /** Cursor 多根/工作区常传 /d:/path/to/project */
+    const m = s.match(/^\/+([A-Za-z]:)(?:\/(.*))?$/i);
+    if (m) {
+      const rest = m[2] ? m[2].replace(/\//g, "\\") : "";
+      return rest ? `${m[1]}\\${rest}` : `${m[1]}\\`;
+    }
+  }
+  return s;
+}
+
+/** stdin / 环境变量未提供 transcript_path 时，在 ~/.cursor/projects/*/agent-transcripts 下按会话 ID 查找 */
+async function resolveTranscriptPath(conversationId, { transcriptPath }) {
+  if (transcriptPath) {
+    return normalizeCursorWindowsPath(transcriptPath);
+  }
+  const id = conversationId && sanitizeSegment(conversationId);
+  if (!id) return null;
+
+  const home =
+    (process.env.USERPROFILE && process.env.USERPROFILE.trim()) ||
+    (process.env.HOME && process.env.HOME.trim()) ||
+    null;
+  if (!home) return null;
+
+  const projectsRoot = path.join(home, ".cursor", "projects");
+  let entries = [];
+  try {
+    entries = await fs.readdir(projectsRoot, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+
+  const rel = path.join("agent-transcripts", id, `${id}.jsonl`);
+  for (const ent of entries) {
+    if (!ent.isDirectory()) continue;
+    const candidate = path.join(projectsRoot, ent.name, rel);
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      /* try next project slug */
+    }
+  }
+  return null;
 }
 
 async function delay(ms) {
@@ -260,19 +379,21 @@ function parseAfterAgentResponseStdin(raw) {
   try {
     attempts.push("regex_loose_extract");
     const conversation_id =
-      extractStringPropertyLoose(raw, "conversation_id") || extractUuidLoose(raw);
+      extractStringPropertyLoose(raw, "conversation_id") ||
+      extractStringPropertyLoose(raw, "session_id") ||
+      extractUuidLoose(raw);
     const transcript_path = extractStringPropertyLoose(raw, "transcript_path");
     const cursor_version =
       extractStringPropertyLoose(raw, "cursor_version") ||
       process.env.CURSOR_VERSION ||
       "";
     const ws = extractWorkspaceRootsLoose(raw);
-    if (conversation_id && transcript_path) {
+    if (conversation_id) {
       return {
         ok: true,
         value: {
           conversation_id,
-          transcript_path,
+          ...(transcript_path ? { transcript_path } : {}),
           cursor_version,
           ...(ws?.length ? { workspace_roots: ws } : {}),
         },
@@ -280,7 +401,7 @@ function parseAfterAgentResponseStdin(raw) {
         fallback_attempts: attempts,
       };
     }
-    attempts.push("regex_loose_missing_id_or_path");
+    attempts.push("regex_loose_missing_id");
   } catch (e3) {
     attempts.push(`regex_loose_throw:${truncateErr(String(e3?.message ?? e3))}`);
   }
@@ -574,4 +695,10 @@ function utcPlusOffset(date, offsetHours) {
   };
 }
 
-main().catch(() => process.exit(0));
+const isDirectRun =
+  process.argv[1] &&
+  path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1]);
+
+if (isDirectRun) {
+  main().catch(() => process.exit(0));
+}

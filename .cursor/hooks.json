@@ -1,10 +1,4 @@
 {
   "version": 1,
-  "hooks": {
-    "afterAgentResponse": [
-      {
-        "command": "node .cursor/hooks/sync-transcript.mjs"
-      }
-    ]
-  }
+  "hooks": {}
 }
