@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 553acc44df0eebe4a8399ed37b7c5f5c, type: 3}
+  m_Name: SampleLevel
+  m_EditorClassIdentifier: 
+  levelId: level_sample_001
+  displayName: Sample Arena
+  mapPrefab: {fileID: 0}
+  triggers:
+  - triggerId: start_zone
+    position: {x: 0, y: 1, z: 0}
+    size: {x: 6, y: 2, z: 6}
+  itemSpawnPoints: []
+  monsterSpawnPoints:
+  - spawnId: monster_1
+    position: {x: 0, y: 1, z: 14}
+    eulerAngles: {x: 0, y: 0, z: 0}
+    prefab: {fileID: 455307330647234322, guid: 4a4d12b1ded0dd74883d24256e49a10e, type: 3}
+  - spawnId: monster_2
+    position: {x: 5, y: 1, z: 18}
+    eulerAngles: {x: 0, y: 0, z: 0}
+    prefab: {fileID: 455307330647234322, guid: 4a4d12b1ded0dd74883d24256e49a10e, type: 3}
+  - spawnId: monster_3
+    position: {x: -5, y: 1, z: 18}
+    eulerAngles: {x: 0, y: 0, z: 0}
+    prefab: {fileID: 455307330647234322, guid: 4a4d12b1ded0dd74883d24256e49a10e, type: 3}
+  phases:
+  - phaseId: phase_reach_start
+    phaseType: 0
+    requiredTriggerId: start_zone
+    requiredWaveCount: 1
+  - phaseId: phase_defend_waves
+    phaseType: 1
+    requiredTriggerId: 
+    requiredWaveCount: 2
+  - phaseId: phase_complete
+    phaseType: 2
+    requiredTriggerId: 
+    requiredWaveCount: 1
