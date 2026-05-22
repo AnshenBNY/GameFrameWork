@@ -1,0 +1,10 @@
+# 忽略 Unity 自动生成的文件夹
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+
+
+# 忽略 Windows 系统文件
+Thumbs.db
