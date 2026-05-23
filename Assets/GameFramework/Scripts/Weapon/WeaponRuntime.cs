@@ -31,6 +31,7 @@ namespace GameFramework.Weapon
         private float _reloadEndTime;
 
         public WeaponDefinition Definition => definition;
+        public Transform FirePoint => firePoint;
         public int CurrentAmmo => _currentAmmo;
         public int ReserveAmmo => _reserveAmmo;
         public bool IsReloading => _isReloading;

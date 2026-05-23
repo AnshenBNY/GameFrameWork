@@ -22,12 +22,12 @@ namespace GameFramework.Combat
         /// <summary>
         /// 玩家瞄准/射击：命中 Default + Environment + Enemy，排除 Player。
         /// </summary>
-        public static LayerMask PlayerCombatMask => BuildMaskIncluding(Default, Environment, Enemy, exclude: Player);
+        public static LayerMask PlayerCombatMask => BuildMask(Player, Default, Environment, Enemy);
 
         /// <summary>
         /// 敌人射击：命中 Default + Environment + Player，排除 Enemy。
         /// </summary>
-        public static LayerMask EnemyCombatMask => BuildMaskIncluding(Default, Environment, Player, exclude: Enemy);
+        public static LayerMask EnemyCombatMask => BuildMask(Enemy, Default, Environment, Player);
 
         /// <summary>
         /// 根据阵营返回默认射击 LayerMask。
@@ -41,34 +41,27 @@ namespace GameFramework.Combat
                 case FactionType.Enemy:
                     return EnemyCombatMask;
                 default:
-                    return BuildMaskIncluding(Default, Environment, Player, Enemy);
+                    return BuildMask(-1, Default, Environment, Player, Enemy);
             }
         }
 
         private static int Default => 0;
 
-        private static LayerMask BuildMaskIncluding(int layerA, int layerB, int layerC, int exclude)
+        /// <param name="excludeLayer">要排除的 Layer，传 -1 表示不排除。</param>
+        /// <param name="optionalFourthLayer">可选第四层，传 -1 表示忽略。</param>
+        private static LayerMask BuildMask(int excludeLayer, int layerA, int layerB, int layerC, int optionalFourthLayer = -1)
         {
             int mask = 0;
             AddLayer(ref mask, layerA);
             AddLayer(ref mask, layerB);
             AddLayer(ref mask, layerC);
+            AddLayer(ref mask, optionalFourthLayer);
 
-            if (exclude >= 0)
+            if (excludeLayer >= 0)
             {
-                mask &= ~(1 << exclude);
+                mask &= ~(1 << excludeLayer);
             }
 
-            return mask;
-        }
-
-        private static LayerMask BuildMaskIncluding(int layerA, int layerB, int layerC, int layerD)
-        {
-            int mask = 0;
-            AddLayer(ref mask, layerA);
-            AddLayer(ref mask, layerB);
-            AddLayer(ref mask, layerC);
-            AddLayer(ref mask, layerD);
             return mask;
         }
 

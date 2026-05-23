@@ -10,7 +10,8 @@ namespace GameFramework.Character
     /// - Player 根节点：只负责位移与碰撞，不参与朝向
     /// - Root 节点：负责模型/武器朝向（约定 Root 的 +Z 为正面）
     /// - 移动方向始终相对相机，不受 Root 旋转影响
-    /// - 射击时 Root 朝向屏幕准心目标；非射击移动时 Root 朝向移动方向
+    /// - 射击时 Root 水平朝向准心；Muzzle 完整对齐相机瞄点（含俯仰）
+    /// - 非射击移动时 Root 朝向移动方向，Muzzle 归位
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     [RequireComponent(typeof(ActorStatsComponent))]
@@ -25,6 +26,7 @@ namespace GameFramework.Character
         [Header("移动与朝向")]
         [SerializeField] private float rotationSpeed = 12f;
         [SerializeField] private float aimRotationSpeed = 18f;
+        [SerializeField] private float muzzleAimSpeed = 24f;
 
         [Header("战斗组件")]
         [SerializeField] private WeaponRuntime weaponRuntime;
@@ -63,6 +65,7 @@ namespace GameFramework.Character
             }
 
             HandleMovement();
+            HandleMuzzleAim();
             HandleFire();
             HandleSkillCast();
             HandleItemUse();
@@ -152,6 +155,47 @@ namespace GameFramework.Character
         private static void RotateTransform(Transform target, Vector3 direction, float speed)
         {
             CharacterFacingUtility.RotateToward(target, direction, speed);
+        }
+
+        /// <summary>
+        /// Muzzle 朝向规则：
+        /// 1. 按住射击 -> +Z 轴对齐相机准心落点（含俯仰）
+        /// 2. 否则 -> 局部旋转归位，跟随 Root
+        /// </summary>
+        private void HandleMuzzleAim()
+        {
+            if (weaponRuntime == null || cameraController == null)
+            {
+                return;
+            }
+
+            Transform muzzle = weaponRuntime.FirePoint;
+            if (muzzle == null)
+            {
+                return;
+            }
+
+            if (Input.GetButton("Fire1"))
+            {
+                if (!cameraController.TryGetAimPoint(transform, out Vector3 aimPoint))
+                {
+                    return;
+                }
+
+                Vector3 toAim = aimPoint - muzzle.position;
+                if (toAim.sqrMagnitude <= 0.0001f)
+                {
+                    return;
+                }
+
+                CharacterFacingUtility.RotateToward3D(muzzle, toAim, muzzleAimSpeed);
+                return;
+            }
+
+            muzzle.localRotation = Quaternion.Slerp(
+                muzzle.localRotation,
+                Quaternion.identity,
+                Time.deltaTime * muzzleAimSpeed);
         }
 
         private void HandleFire()

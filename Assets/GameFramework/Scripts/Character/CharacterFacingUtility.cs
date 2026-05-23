@@ -23,7 +23,7 @@ namespace GameFramework.Character
         }
 
         /// <summary>
-        /// 平滑旋转 transform，使其 +Z 轴对齐目标方向。
+        /// 平滑旋转 transform，使其 +Z 轴对齐目标水平方向。
         /// </summary>
         public static void RotateToward(Transform target, Vector3 worldDirection, float speed)
         {
@@ -33,6 +33,20 @@ namespace GameFramework.Character
             }
 
             Quaternion targetRot = GetFacingRotation(worldDirection);
+            target.rotation = Quaternion.Slerp(target.rotation, targetRot, Time.deltaTime * speed);
+        }
+
+        /// <summary>
+        /// 平滑旋转 transform，使其 +Z 轴对齐目标方向（含俯仰，用于 Muzzle 等）。
+        /// </summary>
+        public static void RotateToward3D(Transform target, Vector3 worldDirection, float speed)
+        {
+            if (target == null || worldDirection.sqrMagnitude <= 0.0001f)
+            {
+                return;
+            }
+
+            Quaternion targetRot = Quaternion.LookRotation(worldDirection.normalized, Vector3.up);
             target.rotation = Quaternion.Slerp(target.rotation, targetRot, Time.deltaTime * speed);
         }
     }

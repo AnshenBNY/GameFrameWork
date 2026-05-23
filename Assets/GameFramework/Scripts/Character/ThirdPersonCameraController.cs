@@ -110,12 +110,11 @@ namespace GameFramework.Character
         }
 
         /// <summary>
-        /// 从屏幕中心射线获取水平瞄准方向（用于 Root 朝向准心目标点）。
-        /// ignoreRoot：通常为 Player 根节点，用于剔除自身 Collider。
+        /// 从屏幕中心射线获取准心落点（世界坐标）。
         /// </summary>
-        public bool TryGetAimDirection(Vector3 origin, Transform ignoreRoot, out Vector3 horizontalDirection)
+        public bool TryGetAimPoint(Transform ignoreRoot, out Vector3 aimPoint)
         {
-            horizontalDirection = MovementForward;
+            aimPoint = default;
 
             if (_camera == null)
             {
@@ -123,7 +122,7 @@ namespace GameFramework.Character
             }
 
             Ray ray = _camera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-            Vector3 aimPoint = ray.origin + ray.direction * aimRayDistance;
+            aimPoint = ray.origin + ray.direction * aimRayDistance;
 
             if (CombatRaycastUtility.TryFirstHit(
                     ray,
@@ -134,6 +133,22 @@ namespace GameFramework.Character
                     _ignoredAimLayers))
             {
                 aimPoint = hit.point;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 从屏幕中心射线获取水平瞄准方向（用于 Root 朝向准心目标点）。
+        /// ignoreRoot：通常为 Player 根节点，用于剔除自身 Collider。
+        /// </summary>
+        public bool TryGetAimDirection(Vector3 origin, Transform ignoreRoot, out Vector3 horizontalDirection)
+        {
+            horizontalDirection = MovementForward;
+
+            if (!TryGetAimPoint(ignoreRoot, out Vector3 aimPoint))
+            {
+                return false;
             }
 
             Vector3 toAim = aimPoint - origin;
