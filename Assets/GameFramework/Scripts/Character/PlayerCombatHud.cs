@@ -8,10 +8,8 @@ namespace GameFramework.Character
 {
     /// <summary>
     /// 玩家战斗 HUD：
-    /// - 生命值
-    /// - 弹药
-    /// - 技能冷却状态
-    /// 说明：这里使用 UGUI 文本做最小实现，后续可替换为正式 UI 框架。
+    /// - 生命值 / 弹药 / 技能冷却
+    /// - 屏幕中心准心
     /// </summary>
     public class PlayerCombatHud : MonoBehaviour
     {
@@ -23,6 +21,22 @@ namespace GameFramework.Character
         [SerializeField] private Text healthText;
         [SerializeField] private Text ammoText;
         [SerializeField] private Text skillText;
+
+        [Header("准心")]
+        [SerializeField] private RectTransform crosshairRoot;
+        [SerializeField] private bool createCrosshairIfMissing = true;
+        [SerializeField] private Color crosshairColor = new Color(1f, 1f, 1f, 0.95f);
+        [SerializeField] private float crosshairLineLength = 10f;
+        [SerializeField] private float crosshairLineThickness = 2f;
+        [SerializeField] private float crosshairGap = 4f;
+
+        private void Awake()
+        {
+            if (createCrosshairIfMissing && crosshairRoot == null)
+            {
+                crosshairRoot = BuildCrosshair(transform);
+            }
+        }
 
         private void Update()
         {
@@ -78,6 +92,48 @@ namespace GameFramework.Character
 
             bool ready = skillCaster.IsSkillReady(skill);
             return $"{key}:{skill.displayName}({(ready ? "Ready" : "CD")})";
+        }
+
+        /// <summary>
+        /// 在屏幕中心创建简易十字准心。
+        /// </summary>
+        private RectTransform BuildCrosshair(Transform parent)
+        {
+            GameObject rootGo = new GameObject("Crosshair");
+            rootGo.transform.SetParent(parent, false);
+
+            RectTransform root = rootGo.AddComponent<RectTransform>();
+            root.anchorMin = new Vector2(0.5f, 0.5f);
+            root.anchorMax = new Vector2(0.5f, 0.5f);
+            root.pivot = new Vector2(0.5f, 0.5f);
+            root.anchoredPosition = Vector2.zero;
+            root.sizeDelta = Vector2.zero;
+
+            CreateCrosshairLine(root, "CrosshairUp", new Vector2(0f, crosshairGap), new Vector2(crosshairLineThickness, crosshairLineLength));
+            CreateCrosshairLine(root, "CrosshairDown", new Vector2(0f, -crosshairGap), new Vector2(crosshairLineThickness, crosshairLineLength));
+            CreateCrosshairLine(root, "CrosshairLeft", new Vector2(-crosshairGap, 0f), new Vector2(crosshairLineLength, crosshairLineThickness));
+            CreateCrosshairLine(root, "CrosshairRight", new Vector2(crosshairGap, 0f), new Vector2(crosshairLineLength, crosshairLineThickness));
+
+            return root;
+        }
+
+        private void CreateCrosshairLine(RectTransform parent, string name, Vector2 anchoredPos, Vector2 size)
+        {
+            GameObject lineGo = new GameObject(name);
+            lineGo.transform.SetParent(parent, false);
+
+            RectTransform rect = lineGo.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPos;
+            rect.sizeDelta = size;
+
+            Image image = lineGo.AddComponent<Image>();
+            image.sprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/UISprite.psd");
+            image.type = Image.Type.Simple;
+            image.color = crosshairColor;
+            image.raycastTarget = false;
         }
     }
 }

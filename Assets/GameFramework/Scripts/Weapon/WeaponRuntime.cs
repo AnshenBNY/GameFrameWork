@@ -14,7 +14,15 @@ namespace GameFramework.Weapon
     {
         [SerializeField] private WeaponDefinition definition;
         [SerializeField] private Transform firePoint;
+
+        [Header("射击判定")]
+        [Tooltip("启用后按阵营自动配置 LayerMask，并排除 owner 自身 Collider。")]
+        [SerializeField] private bool useCombatLayerDefaults = true;
+
         [SerializeField] private LayerMask hitMask = ~0;
+
+        [Header("弹道可视化")]
+        [SerializeField] private WeaponShotVisualizer shotVisualizer;
 
         private float _nextFireTime;
         private int _currentAmmo;
@@ -34,6 +42,31 @@ namespace GameFramework.Weapon
                 _currentAmmo = definition.clipSize;
                 _reserveAmmo = Mathf.Max(0, definition.initialReserveAmmo);
             }
+
+            ApplyDefaultHitMask();
+
+            if (shotVisualizer == null)
+            {
+                shotVisualizer = GetComponent<WeaponShotVisualizer>();
+            }
+
+            if (shotVisualizer == null && definition != null && definition.debugDrawRay)
+            {
+                shotVisualizer = gameObject.AddComponent<WeaponShotVisualizer>();
+            }
+        }
+
+        private void ApplyDefaultHitMask()
+        {
+            if (!useCombatLayerDefaults)
+            {
+                return;
+            }
+
+            FactionComponent faction = GetComponentInParent<FactionComponent>();
+            hitMask = faction != null
+                ? CombatLayers.GetCombatMaskForFaction(faction.Faction)
+                : CombatLayers.PlayerCombatMask;
         }
 
         private void Update()
@@ -69,7 +102,6 @@ namespace GameFramework.Weapon
                 FireSinglePellet(owner);
             }
 
-            // 打空弹匣时自动触发换弹，提升手感。
             if (_currentAmmo <= 0)
             {
                 StartReload();
@@ -158,30 +190,52 @@ namespace GameFramework.Weapon
         {
             Vector3 direction = GetSpreadDirection(firePoint.forward, definition.spreadAngle);
             Ray ray = new Ray(firePoint.position, direction);
+            Transform ownerRoot = owner != null ? owner.transform : transform;
 
-            if (Physics.Raycast(ray, out RaycastHit hit, definition.range, hitMask, QueryTriggerInteraction.Ignore))
+            bool hasHit = CombatRaycastUtility.TryFirstHit(
+                ray,
+                definition.range,
+                hitMask,
+                ownerRoot,
+                out RaycastHit hit);
+
+            Vector3 endPoint = hasHit ? hit.point : ray.origin + ray.direction * definition.range;
+
+            if (hasHit)
             {
                 ActorStatsComponent targetStats = hit.collider.GetComponentInParent<ActorStatsComponent>();
                 if (targetStats != null)
                 {
-                    if (!GameFramework.Combat.CombatTargetingUtility.CanAffect(
+                    if (CombatTargetingUtility.CanAffect(
                             owner,
                             targetStats.gameObject,
                             allowSelf: false,
                             allowFriendly: false,
                             allowHostile: true))
                     {
-                        return;
+                        DamageContext context = new DamageContext(
+                            owner,
+                            targetStats.gameObject,
+                            definition.pelletDamage,
+                            DamageSourceType.Weapon);
+                        targetStats.ApplyDamage(context);
                     }
-
-                    DamageContext context = new DamageContext(owner, targetStats.gameObject, definition.pelletDamage, DamageSourceType.Weapon);
-                    targetStats.ApplyDamage(context);
                 }
+            }
+
+            if (shotVisualizer != null)
+            {
+                shotVisualizer.ShowShot(
+                    ray.origin,
+                    endPoint,
+                    hasHit,
+                    hasHit ? hit.point : endPoint,
+                    hasHit ? hit.normal : Vector3.up);
             }
 
             if (definition.debugDrawRay)
             {
-                Debug.DrawRay(ray.origin, ray.direction * definition.range, Color.red, 0.5f);
+                Debug.DrawLine(ray.origin, endPoint, hasHit ? Color.red : Color.yellow, 0.5f);
             }
         }
 

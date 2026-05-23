@@ -31,12 +31,14 @@ namespace GameFramework.Editor
         public static void BuildSample()
         {
             EnsureFolders();
+            CombatLayerSetup.EnsureProjectLayers();
             EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
 
             // 地面
             GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
             ground.name = "Ground";
             ground.transform.localScale = new Vector3(5f, 1f, 5f);
+            CombatLayerSetup.SetLayerRecursively(ground, CombatLayers.Environment);
 
             // 资产
             WeaponDefinition playerWeapon = CreatePlayerWeaponAsset();
@@ -252,9 +254,11 @@ namespace GameFramework.Editor
             muzzle.transform.localPosition = new Vector3(0f, 1.2f, 0.5f);
 
             WeaponRuntime weaponRuntime = player.AddComponent<WeaponRuntime>();
+            player.AddComponent<WeaponShotVisualizer>();
             SerializedObject weaponSo = new SerializedObject(weaponRuntime);
             weaponSo.FindProperty("definition").objectReferenceValue = weaponDef;
             weaponSo.FindProperty("firePoint").objectReferenceValue = muzzle.transform;
+            weaponSo.FindProperty("useCombatLayerDefaults").boolValue = true;
             weaponSo.ApplyModifiedPropertiesWithoutUndo();
 
             SkillCaster caster = player.AddComponent<SkillCaster>();
@@ -271,6 +275,7 @@ namespace GameFramework.Editor
             controllerSo.ApplyModifiedPropertiesWithoutUndo();
 
             SetFaction(player, FactionType.Player);
+            CombatLayerSetup.SetLayerRecursively(player, CombatLayers.Player);
             return player;
         }
 
@@ -301,6 +306,7 @@ namespace GameFramework.Editor
             SerializedObject weaponSo = new SerializedObject(weaponRuntime);
             weaponSo.FindProperty("definition").objectReferenceValue = weaponDef;
             weaponSo.FindProperty("firePoint").objectReferenceValue = muzzle.transform;
+            weaponSo.FindProperty("useCombatLayerDefaults").boolValue = true;
             weaponSo.ApplyModifiedPropertiesWithoutUndo();
 
             SkillCaster caster = monster.AddComponent<SkillCaster>();
@@ -317,11 +323,17 @@ namespace GameFramework.Editor
             brainSo.ApplyModifiedPropertiesWithoutUndo();
 
             SetFaction(monster, FactionType.Enemy);
+            CombatLayerSetup.SetLayerRecursively(monster, CombatLayers.Enemy);
             return monster;
         }
 
         private static void SetupCamera(Transform player)
         {
+            // 肩部枢轴：相机围绕该点 orbiting，不影响角色自身旋转。
+            GameObject pivotGo = new GameObject("CameraPivot");
+            pivotGo.transform.SetParent(player, false);
+            pivotGo.transform.localPosition = new Vector3(0f, 1.55f, 0f);
+
             Camera mainCamera = Camera.main;
             if (mainCamera == null)
             {
@@ -331,19 +343,29 @@ namespace GameFramework.Editor
                 cameraGo.AddComponent<AudioListener>();
             }
 
-            SimpleFollowCamera follow = mainCamera.gameObject.GetComponent<SimpleFollowCamera>();
-            if (follow == null)
+            SimpleFollowCamera oldFollow = mainCamera.gameObject.GetComponent<SimpleFollowCamera>();
+            if (oldFollow != null)
             {
-                follow = mainCamera.gameObject.AddComponent<SimpleFollowCamera>();
+                Object.DestroyImmediate(oldFollow);
             }
-            follow.SetTarget(player);
 
-            // 给角色控制器补充 cameraPivot（用于移动朝向对齐摄像机）。
+            ThirdPersonCameraController cameraController = mainCamera.gameObject.GetComponent<ThirdPersonCameraController>();
+            if (cameraController == null)
+            {
+                cameraController = mainCamera.gameObject.AddComponent<ThirdPersonCameraController>();
+            }
+
+            SerializedObject cameraSo = new SerializedObject(cameraController);
+            cameraSo.FindProperty("useCombatLayerDefaults").boolValue = true;
+            cameraSo.ApplyModifiedPropertiesWithoutUndo();
+
+            cameraController.SetTarget(player, pivotGo.transform);
+
             ThirdPersonCharacterController playerController = player.GetComponent<ThirdPersonCharacterController>();
             if (playerController != null)
             {
                 SerializedObject controllerSo = new SerializedObject(playerController);
-                controllerSo.FindProperty("cameraPivot").objectReferenceValue = mainCamera.transform;
+                controllerSo.FindProperty("cameraController").objectReferenceValue = cameraController;
                 controllerSo.ApplyModifiedPropertiesWithoutUndo();
             }
         }

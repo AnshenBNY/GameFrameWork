@@ -204,7 +204,7 @@ function normalizeCursorWindowsPath(p) {
   return s;
 }
 
-/** stdin / 环境变量未提供 transcript_path 时，在 ~/.cursor/projects/*/agent-transcripts 下按会话 ID 查找 */
+/** stdin / 环境变量未提供 transcript_path 时，在 ~/.cursor/projects 各项目下的 agent-transcripts 目录按会话 ID 查找 */
 async function resolveTranscriptPath(conversationId, { transcriptPath }) {
   if (transcriptPath) {
     return normalizeCursorWindowsPath(transcriptPath);

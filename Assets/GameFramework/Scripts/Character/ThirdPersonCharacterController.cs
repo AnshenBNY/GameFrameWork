@@ -7,26 +7,24 @@ namespace GameFramework.Character
 {
     /// <summary>
     /// 第三人称角色控制器（玩家）：
-    /// - 基础移动/重力/跳跃（多段跳）
-    /// - 武器射击
-    /// - 道具使用
-    /// - 技能释放（1/2/Q/F）
-    /// 
-    /// 输入约定（Unity 旧输入系统）：
-    /// - Horizontal / Vertical
-    /// - Mouse X / Mouse Y
-    /// - Fire1
-    /// - Jump
-    /// - R（换弹）
-    /// - Alpha1 (主动1) / Alpha2 (主动2) / Q (终极) / F (道具)
+    /// - Player 根节点：只负责位移与碰撞，不参与朝向
+    /// - Root 节点：负责模型/武器朝向（约定 Root 的 +Z 为正面）
+    /// - 移动方向始终相对相机，不受 Root 旋转影响
+    /// - 射击时 Root 朝向屏幕准心目标；非射击移动时 Root 朝向移动方向
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     [RequireComponent(typeof(ActorStatsComponent))]
     public class ThirdPersonCharacterController : MonoBehaviour
     {
-        [Header("视角与朝向")]
-        [SerializeField] private Transform cameraPivot;
+        [Header("层级引用")]
+        [Tooltip("专门用于模型旋转的 Root 节点（Player 预制体中的 Root）。")]
+        [SerializeField] private Transform characterRoot;
+
+        [SerializeField] private ThirdPersonCameraController cameraController;
+
+        [Header("移动与朝向")]
         [SerializeField] private float rotationSpeed = 12f;
+        [SerializeField] private float aimRotationSpeed = 18f;
 
         [Header("战斗组件")]
         [SerializeField] private WeaponRuntime weaponRuntime;
@@ -42,6 +40,18 @@ namespace GameFramework.Character
         {
             _characterController = GetComponent<CharacterController>();
             _stats = GetComponent<ActorStatsComponent>();
+
+            if (characterRoot == null)
+            {
+                Transform root = transform.Find("Root");
+                characterRoot = root != null ? root : transform;
+            }
+
+            if (cameraController == null)
+            {
+                cameraController = FindObjectOfType<ThirdPersonCameraController>();
+            }
+
             ResetJumpState();
         }
 
@@ -58,30 +68,41 @@ namespace GameFramework.Character
             HandleItemUse();
         }
 
+        public void SetCameraController(ThirdPersonCameraController controller)
+        {
+            cameraController = controller;
+        }
+
+        public void SetCharacterRoot(Transform root)
+        {
+            characterRoot = root;
+        }
+
         private void HandleMovement()
         {
             AttributeSet attributes = _stats.CurrentAttributes;
 
-            float horizontal = Input.GetAxis("Horizontal");
-            float vertical = Input.GetAxis("Vertical");
+            float horizontal = Input.GetAxisRaw("Horizontal");
+            float vertical = Input.GetAxisRaw("Vertical");
             Vector3 input = new Vector3(horizontal, 0f, vertical);
             input = Vector3.ClampMagnitude(input, 1f);
 
-            Vector3 forward = cameraPivot != null ? cameraPivot.forward : transform.forward;
-            Vector3 right = cameraPivot != null ? cameraPivot.right : transform.right;
+            // 位移基准：相机水平方向。与 Root 当前朝向无关。
+            Vector3 forward = cameraController != null ? cameraController.MovementForward : transform.forward;
+            Vector3 right = cameraController != null ? cameraController.MovementRight : transform.right;
             forward.y = 0f;
             right.y = 0f;
             forward.Normalize();
             right.Normalize();
 
-            Vector3 moveDir = (forward * input.z + right * input.x).normalized;
-            Vector3 horizontalMove = moveDir * attributes.moveSpeed;
-
+            Vector3 moveDir = forward * input.z + right * input.x;
             if (moveDir.sqrMagnitude > 0.0001f)
             {
-                Quaternion targetRot = Quaternion.LookRotation(moveDir, Vector3.up);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * rotationSpeed);
+                moveDir.Normalize();
             }
+
+            Vector3 horizontalMove = moveDir * attributes.moveSpeed;
+            HandleRootRotation(moveDir);
 
             if (_characterController.isGrounded)
             {
@@ -91,7 +112,6 @@ namespace GameFramework.Character
 
             if (Input.GetButtonDown("Jump") && _remainingJumps > 0)
             {
-                // v = sqrt(2gh)
                 _velocity.y = Mathf.Sqrt(2f * Mathf.Abs(Physics.gravity.y) * Mathf.Max(0.1f, attributes.jumpHeight));
                 _remainingJumps--;
             }
@@ -99,6 +119,39 @@ namespace GameFramework.Character
             _velocity.y += Physics.gravity.y * Time.deltaTime;
             Vector3 finalMove = horizontalMove + new Vector3(0f, _velocity.y, 0f);
             _characterController.Move(finalMove * Time.deltaTime);
+        }
+
+        /// <summary>
+        /// Root 朝向规则：
+        /// 1. 按住射击 -> 朝向准心射线落点（可边移动边瞄准）
+        /// 2. 否则，有移动输入 -> 朝向移动方向
+        /// </summary>
+        private void HandleRootRotation(Vector3 moveDir)
+        {
+            Transform rotTarget = characterRoot != null ? characterRoot : transform;
+            Vector3 rotOrigin = rotTarget.position;
+
+            if (Input.GetButton("Fire1") && cameraController != null)
+            {
+                if (cameraController.TryGetAimDirection(rotOrigin, transform, out Vector3 aimDir))
+                {
+                    RotateTransform(rotTarget, aimDir, aimRotationSpeed);
+                    return;
+                }
+            }
+
+            if (moveDir.sqrMagnitude > 0.0001f)
+            {
+                RotateTransform(rotTarget, moveDir, rotationSpeed);
+            }
+        }
+
+        /// <summary>
+        /// 旋转 Root，使局部 +Z 轴（forward）对齐目标方向。
+        /// </summary>
+        private static void RotateTransform(Transform target, Vector3 direction, float speed)
+        {
+            CharacterFacingUtility.RotateToward(target, direction, speed);
         }
 
         private void HandleFire()
