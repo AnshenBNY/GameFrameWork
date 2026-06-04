@@ -5,6 +5,7 @@ using System.Collections;
 public class AimBehaviour : GenericBehaviour
 {
 	public string aimButton = "Aim", shoulderButton = "Aim Shoulder";     // Default aim and switch shoulders buttons.
+	public bool toggleAimWithSingleClick = false;                         // True: right click toggles aim. False: hold-to-aim.
 	public Texture2D crosshair;                                           // Crosshair texture.
 	public float aimTurnSmoothing = 0.15f;                                // Speed of turn response when aiming to match camera facing.
 	public Vector3 aimPivotOffset = new Vector3(0.5f, 1.2f,  0f);         // Offset to repoint the camera when aiming.
@@ -17,6 +18,8 @@ public class AimBehaviour : GenericBehaviour
 	private Vector3 initialRootRotation;                                  // Initial root bone local rotation.
 	private Vector3 initialHipsRotation;                                  // Initial hips rotation related to the root bone.
 	private Vector3 initialSpineRotation;                                 // Initial spine rotation related to the root bone.
+	private bool wasAimInputPressed;                                      // Previous frame aim input state.
+	private bool isAimTransitioning;                                      // Prevent duplicate aim on/off coroutines.
 
 	// Start is always called after any Awake functions.
 	void Start ()
@@ -45,16 +48,30 @@ public class AimBehaviour : GenericBehaviour
 	void Update ()
 	{
 		peekCorner = behaviourManager.GetAnim.GetBool(cornerBool);
+		bool isAimInputPressed = Input.GetAxisRaw(aimButton) != 0f;
 
-		// Activate/deactivate aim by input.
-		if (Input.GetAxisRaw(aimButton) != 0 && !aim)
+		// Toggle aim mode by a single click (input rising edge).
+		if (toggleAimWithSingleClick && isAimInputPressed && !wasAimInputPressed && !isAimTransitioning)
 		{
-			StartCoroutine(ToggleAimOn());
+			if (!aim)
+				StartCoroutine(ToggleAimOn());
+			else
+				StartCoroutine(ToggleAimOff());
 		}
-		else if (aim && Input.GetAxisRaw(aimButton) == 0)
+		// Default hold-to-aim mode.
+		else if (!toggleAimWithSingleClick && !isAimTransitioning)
 		{
-			StartCoroutine(ToggleAimOff());
+			if (isAimInputPressed && !aim)
+			{
+				StartCoroutine(ToggleAimOn());
+			}
+			else if (aim && !isAimInputPressed)
+			{
+				StartCoroutine(ToggleAimOff());
+			}
 		}
+
+		wasAimInputPressed = isAimInputPressed;
 
 		// No sprinting while aiming.
 		canSprint = !aim;
@@ -73,10 +90,14 @@ public class AimBehaviour : GenericBehaviour
 	// Co-routine to start aiming mode with delay.
 	private IEnumerator ToggleAimOn()
 	{
+		isAimTransitioning = true;
 		yield return new WaitForSeconds(0.05f);
 		// Aiming is not possible.
 		if (behaviourManager.GetTempLockStatus(this.behaviourCode) || behaviourManager.IsOverriding(this))
-			yield return false;
+		{
+			isAimTransitioning = false;
+			yield break;
+		}
 
 		// Start aiming.
 		else
@@ -94,17 +115,20 @@ public class AimBehaviour : GenericBehaviour
 			// This state overrides the active one.
 			behaviourManager.OverrideWithBehaviour(this);
 		}
+		isAimTransitioning = false;
 	}
 
 	// Co-routine to end aiming mode with delay.
 	private IEnumerator ToggleAimOff()
 	{
+		isAimTransitioning = true;
 		aim = false;
 		yield return new WaitForSeconds(0.3f);
 		behaviourManager.GetCamScript.ResetTargetOffsets();
 		behaviourManager.GetCamScript.ResetMaxVerticalAngle();
 		yield return new WaitForSeconds(0.05f);
 		behaviourManager.RevokeOverridingBehaviour(this);
+		isAimTransitioning = false;
 	}
 
 	// LocalFixedUpdate overrides the virtual function of the base class.
