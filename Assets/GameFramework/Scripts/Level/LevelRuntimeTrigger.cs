@@ -12,6 +12,7 @@ namespace GameFramework.Level
     public class LevelRuntimeTrigger : MonoBehaviour
     {
         [SerializeField] private string triggerId;
+        [SerializeField] private string requiredTag = "Player";
 
         public void Initialize(string id)
         {
@@ -20,6 +21,11 @@ namespace GameFramework.Level
 
         private void OnTriggerEnter(Collider other)
         {
+            if (!string.IsNullOrEmpty(requiredTag) && !other.CompareTag(requiredTag))
+            {
+                return;
+            }
+
             GameEventBus.RaiseLevelTriggerEntered(triggerId, other.gameObject);
         }
     }

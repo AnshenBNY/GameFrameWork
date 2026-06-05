@@ -1,4 +1,3 @@
-using GameFramework.AI;
 using GameFramework.Combat;
 using UnityEditor;
 using UnityEngine;
@@ -29,6 +28,12 @@ namespace GameFramework.Editor
             }
 
             SerializedProperty layers = tagManager.FindProperty("layers");
+            SerializedProperty tags = tagManager.FindProperty("tags");
+
+            EnsureTagExists(tags, "Player");
+            EnsureTagExists(tags, "Enemy");
+            EnsureTagExists(tags, "GameController");
+
             SetLayerName(layers, 6, CombatLayers.PlayerLayerName);
             SetLayerName(layers, 7, CombatLayers.EnemyLayerName);
             SetLayerName(layers, 8, CombatLayers.EnvironmentLayerName);
@@ -71,14 +76,7 @@ namespace GameFramework.Editor
                 SetLayerRecursively(ground, environmentLayer);
             }
 
-            MonsterBrain[] monsters = Object.FindObjectsOfType<MonsterBrain>();
-            for (int i = 0; i < monsters.Length; i++)
-            {
-                if (enemyLayer >= 0)
-                {
-                    SetLayerRecursively(monsters[i].gameObject, enemyLayer);
-                }
-            }
+            
         }
 
         private static SerializedObject GetTagManager()
@@ -104,6 +102,26 @@ namespace GameFramework.Editor
             {
                 element.stringValue = layerName;
             }
+        }
+
+        private static void EnsureTagExists(SerializedProperty tags, string tagName)
+        {
+            if (tags == null || string.IsNullOrEmpty(tagName))
+            {
+                return;
+            }
+
+            for (int i = 0; i < tags.arraySize; i++)
+            {
+                SerializedProperty element = tags.GetArrayElementAtIndex(i);
+                if (element.stringValue == tagName)
+                {
+                    return;
+                }
+            }
+
+            tags.InsertArrayElementAtIndex(0);
+            tags.GetArrayElementAtIndex(0).stringValue = tagName;
         }
     }
 }

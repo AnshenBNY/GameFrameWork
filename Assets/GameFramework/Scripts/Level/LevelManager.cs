@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using GameFramework.Core;
+using GameFramework.Stats;
 using UnityEngine;
 
 namespace GameFramework.Level
@@ -15,6 +16,7 @@ namespace GameFramework.Level
         [Header("配置")]
         [SerializeField] private LevelDefinition currentLevel;
         [SerializeField] private Transform runtimeRoot;
+        [SerializeField] private float deadMonsterDestroyDelay = 0.35f;
 
         private readonly List<GameObject> _spawnedMonsters = new List<GameObject>();
         private readonly List<GameObject> _spawnedItems = new List<GameObject>();
@@ -23,8 +25,57 @@ namespace GameFramework.Level
         private GameObject _spawnedMap;
         private int _currentPhaseIndex = -1;
         private int _remainingWavesInPhase = 0;
+        private string _lastDiedActorName = "(none)";
 
         public LevelDefinition CurrentLevel => currentLevel;
+        public int ActiveMonsterCount => _spawnedMonsters.Count;
+        public int CurrentPhaseIndex => _currentPhaseIndex;
+        public int RemainingWavesInPhase => _remainingWavesInPhase;
+        public bool HasValidPhase => IsCurrentPhaseValid();
+        public string LastDiedActorName => _lastDiedActorName;
+
+        public string GetMonsterDebugSnapshot()
+        {
+            if (_spawnedMonsters.Count == 0)
+            {
+                return "(empty)";
+            }
+
+            List<string> names = new List<string>(_spawnedMonsters.Count);
+            for (int i = 0; i < _spawnedMonsters.Count; i++)
+            {
+                GameObject go = _spawnedMonsters[i];
+                names.Add(go != null ? go.name : "null");
+            }
+
+            return string.Join(", ", names);
+        }
+
+        public LevelPhaseType? CurrentPhaseType
+        {
+            get
+            {
+                if (!IsCurrentPhaseValid())
+                {
+                    return null;
+                }
+
+                return currentLevel.phases[_currentPhaseIndex].phaseType;
+            }
+        }
+
+        public string CurrentPhaseId
+        {
+            get
+            {
+                if (!IsCurrentPhaseValid())
+                {
+                    return string.Empty;
+                }
+
+                return currentLevel.phases[_currentPhaseIndex].phaseId;
+            }
+        }
 
         private void OnEnable()
         {
@@ -127,9 +178,28 @@ namespace GameFramework.Level
                     spawn.position,
                     Quaternion.Euler(spawn.eulerAngles),
                     root);
+                EnsureMonsterRuntimeComponents(go);
 
                 _spawnedMonsters.Add(go);
                 GameEventBus.RaiseMonsterSpawned(go);
+            }
+        }
+
+        private static void EnsureMonsterRuntimeComponents(GameObject monster)
+        {
+            if (monster == null)
+            {
+                return;
+            }
+
+            if (monster.GetComponent<ActorStatsComponent>() == null)
+            {
+                monster.AddComponent<ActorStatsComponent>();
+            }
+
+            if (monster.GetComponent<EnemySimpleHealthBar>() == null)
+            {
+                monster.AddComponent<EnemySimpleHealthBar>();
             }
         }
 
@@ -154,8 +224,47 @@ namespace GameFramework.Level
 
         private void HandleActorDied(GameObject actor)
         {
-            if (_spawnedMonsters.Remove(actor))
+            if (actor == null)
             {
+                return;
+            }
+
+            _lastDiedActorName = actor.name;
+
+            GameObject deadRoot = actor.transform.root.gameObject;
+            bool removed = _spawnedMonsters.Remove(actor);
+            if (!removed)
+            {
+                removed = _spawnedMonsters.Remove(deadRoot);
+            }
+
+            if (!removed)
+            {
+                for (int i = _spawnedMonsters.Count - 1; i >= 0; i--)
+                {
+                    GameObject monster = _spawnedMonsters[i];
+                    if (monster == null)
+                    {
+                        _spawnedMonsters.RemoveAt(i);
+                        continue;
+                    }
+
+                    if (actor.transform.IsChildOf(monster.transform) || deadRoot.transform.IsChildOf(monster.transform))
+                    {
+                        _spawnedMonsters.RemoveAt(i);
+                        removed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (removed)
+            {
+                if (actor != null)
+                {
+                    Destroy(actor, Mathf.Max(0f, deadMonsterDestroyDelay));
+                }
+
                 if (_spawnedMonsters.Count == 0)
                 {
                     TryAdvanceByMonsterClear();
@@ -219,6 +328,7 @@ namespace GameFramework.Level
 
             _currentPhaseIndex = -1;
             _remainingWavesInPhase = 0;
+            _lastDiedActorName = "(none)";
         }
 
         private Transform GetRuntimeRoot()
