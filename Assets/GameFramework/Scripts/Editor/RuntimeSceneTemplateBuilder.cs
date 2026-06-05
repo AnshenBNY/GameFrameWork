@@ -17,13 +17,14 @@ namespace GameFramework.Editor
         private const string ScenePath = GeneratedRoot + "/GF_RuntimeTemplate.unity";
         private const string LevelAssetPath = GeneratedRoot + "/GF_MinimalLevel.asset";
         private const string PlayerPrefabPath = GeneratedRoot + "/Player.prefab";
-        private const string EnemyPrefabPath = GeneratedRoot + "/GF_BasicEnemy.prefab";
+        private const string EnemyPrefabPath = GeneratedRoot + "/Zombie1.prefab";
         private const string GameControllerPrefabPath = GeneratedRoot + "/GameController.prefab";
 
         [MenuItem("Tools/GameFramework/Create Runtime Scene Template")]
         public static void CreateRuntimeSceneTemplate()
         {
             CombatLayerSetup.EnsureProjectLayers();
+            ZombiePrefabConfigurator.ConfigureZombieEnemyPrefab();
             EnemyPrefabBuilder.CreateBasicEnemyPrefab();
             LevelTemplateBuilder.CreateMinimalLevelTemplate();
 
@@ -175,6 +176,10 @@ namespace GameFramework.Editor
             }
 
             GameObject enemyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(EnemyPrefabPath);
+            if (enemyPrefab == null)
+            {
+                enemyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(GeneratedRoot + "/GF_BasicEnemy.prefab");
+            }
             if (enemyPrefab != null)
             {
                 for (int i = 0; i < level.monsterSpawnPoints.Count; i++)

@@ -15,7 +15,11 @@ namespace GameFramework.Editor
         public static void CreateMinimalLevelTemplate()
         {
             EnsureFolder(AssetRoot);
-            GameObject defaultEnemyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{AssetRoot}/GF_BasicEnemy.prefab");
+            GameObject defaultEnemyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{AssetRoot}/Zombie1.prefab");
+            if (defaultEnemyPrefab == null)
+            {
+                defaultEnemyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{AssetRoot}/GF_BasicEnemy.prefab");
+            }
 
             string levelAssetPath = $"{AssetRoot}/GF_MinimalLevel.asset";
             LevelDefinition level = AssetDatabase.LoadAssetAtPath<LevelDefinition>(levelAssetPath);

@@ -24,18 +24,15 @@ MonoBehaviour:
   - spawnId: enemy_a
     position: {x: 0, y: 0, z: 14}
     eulerAngles: {x: 0, y: 0, z: 0}
-    prefab: {fileID: 1927515055704078202, guid: d9947ad764f220848a844af0621fd7c6,
-      type: 3}
+    prefab: {fileID: 455307330647234322, guid: 4a4d12b1ded0dd74883d24256e49a10e, type: 3}
   - spawnId: enemy_b
     position: {x: 4, y: 0, z: 18}
     eulerAngles: {x: 0, y: 0, z: 0}
-    prefab: {fileID: 1927515055704078202, guid: d9947ad764f220848a844af0621fd7c6,
-      type: 3}
+    prefab: {fileID: 455307330647234322, guid: 4a4d12b1ded0dd74883d24256e49a10e, type: 3}
   - spawnId: enemy_c
     position: {x: -4, y: 0, z: 18}
     eulerAngles: {x: 0, y: 0, z: 0}
-    prefab: {fileID: 1927515055704078202, guid: d9947ad764f220848a844af0621fd7c6,
-      type: 3}
+    prefab: {fileID: 455307330647234322, guid: 4a4d12b1ded0dd74883d24256e49a10e, type: 3}
   phases:
   - phaseId: phase_reach_start
     phaseType: 0

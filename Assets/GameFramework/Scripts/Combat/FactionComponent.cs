@@ -11,6 +11,11 @@ namespace GameFramework.Combat
 
         public FactionType Faction => faction;
 
+        public void SetFaction(FactionType newFaction)
+        {
+            faction = newFaction;
+        }
+
         public bool IsHostileTo(FactionComponent other)
         {
             if (other == null)

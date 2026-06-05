@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using GameFramework.Core;
+using GameFramework.Combat;
 using GameFramework.Stats;
 using UnityEngine;
 
@@ -201,6 +202,28 @@ namespace GameFramework.Level
             {
                 monster.AddComponent<EnemySimpleHealthBar>();
             }
+
+            if (monster.GetComponent<FactionComponent>() == null)
+            {
+                monster.AddComponent<FactionComponent>();
+            }
+            FactionComponent faction = monster.GetComponent<FactionComponent>();
+            if (faction != null)
+            {
+                faction.SetFaction(FactionType.Enemy);
+            }
+
+            Animator animator = monster.GetComponent<Animator>();
+            if (monster.GetComponent<GameFramework.AI.BasicEnemyController>() == null)
+            {
+                monster.AddComponent<GameFramework.AI.BasicEnemyController>();
+            }
+
+            if (animator == null)
+            {
+                // 无 Animator 的敌人沿用最小功能：仅有血量与阵营，不做动画驱动。
+                return;
+            }
         }
 
         private void CreateTriggers(Transform root)
@@ -260,11 +283,6 @@ namespace GameFramework.Level
 
             if (removed)
             {
-                if (actor != null)
-                {
-                    Destroy(actor, Mathf.Max(0f, deadMonsterDestroyDelay));
-                }
-
                 if (_spawnedMonsters.Count == 0)
                 {
                     TryAdvanceByMonsterClear();

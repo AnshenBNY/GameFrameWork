@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using GameFramework.Combat;
 using GameFramework.Core;
@@ -29,6 +30,8 @@ namespace GameFramework.Stats
 
         public float CurrentHealth => currentHealth;
         public bool IsDead => currentHealth <= 0f;
+        public event Action<float> OnDamaged;
+        public event Action OnDied;
 
         private void Awake()
         {
@@ -55,10 +58,12 @@ namespace GameFramework.Stats
             float reduction = CurrentAttributes.GetDamageReductionRatio();
             float finalDamage = Mathf.Max(1f, context.RawDamage * (1f - reduction));
             currentHealth = Mathf.Max(0f, currentHealth - finalDamage);
+            OnDamaged?.Invoke(finalDamage);
 
             if (IsDead)
             {
                 GameEventBus.RaiseActorDied(gameObject);
+                OnDied?.Invoke();
             }
 
             return finalDamage;

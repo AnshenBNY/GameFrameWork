@@ -19,10 +19,23 @@ namespace GameFramework.Stats
 
         private ActorStatsComponent _stats;
         private Camera _cachedCamera;
+        private bool _isVisible = true;
 
         private void Awake()
         {
             _stats = GetComponent<ActorStatsComponent>();
+            if (_stats != null)
+            {
+                _stats.OnDied += HandleOwnerDied;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_stats != null)
+            {
+                _stats.OnDied -= HandleOwnerDied;
+            }
         }
 
         private void LateUpdate()
@@ -35,7 +48,7 @@ namespace GameFramework.Stats
 
         private void OnGUI()
         {
-            if (_stats == null || _cachedCamera == null)
+            if (!_isVisible || _stats == null || _cachedCamera == null)
             {
                 return;
             }
@@ -73,6 +86,12 @@ namespace GameFramework.Stats
             GUI.color = ratio <= 0.25f ? lowHealthColor : fillColor;
             GUI.DrawTexture(fillRect, Texture2D.whiteTexture);
             GUI.color = oldColor;
+        }
+
+        private void HandleOwnerDied()
+        {
+            _isVisible = false;
+            enabled = false;
         }
     }
 }

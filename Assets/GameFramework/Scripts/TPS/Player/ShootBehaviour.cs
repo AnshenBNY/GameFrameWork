@@ -211,24 +211,25 @@ public class ShootBehaviour : GenericBehaviour
 		{
 			// Is the target organic?
 			bool isOrganic = (organicMask == (organicMask | (1 << hit.transform.root.gameObject.layer)));
-			// Handle shot effects on target.
-			DrawShoot(hit.point, hit.normal, hit.collider.transform, !isOrganic, !isOrganic);
+			ActorStatsComponent targetStats = hit.collider != null ? hit.collider.GetComponentInParent<ActorStatsComponent>() : null;
+			// 命中敌人/可受伤实体时不生成弹孔；仅在非生物表面生成弹孔。
+			bool placeBulletHole = !isOrganic && targetStats == null;
+			DrawShoot(hit.point, hit.normal, hit.collider.transform, !isOrganic, placeBulletHole);
 
 			// Call the damage behaviour of target if exists.
 			if (hit.collider)
 			{
-				ActorStatsComponent targetStats = hit.collider.GetComponentInParent<ActorStatsComponent>();
-				Transform targetRoot = targetStats != null ? targetStats.transform : hit.collider.transform;
-
 				// 优先走 GameFramework 的 status/attributes 伤害链路。
-				if (targetStats != null)
+				if (targetStats != null && IsHostileTarget(targetStats.gameObject))
 				{
 					DamageContext context = new DamageContext(gameObject, targetStats.gameObject, weapons[weapon].bulletDamage, DamageSourceType.Weapon);
-					targetStats.ApplyDamage(context);
+					float dealt = targetStats.ApplyDamage(context);
+					if (dealt > 0f)
+					{
+						RegisterHitFeedback(targetStats);
+					}
 				}
-				// 无 ActorStatsComponent 的对象不再进入旧生命系统，保留命中特效即可。
-
-				RegisterHitFeedback(targetRoot);
+				// 无 ActorStatsComponent 的对象（墙体/场景物件）不再触发命中 + 反馈。
 			}
 		}
 		// No target was hit.
@@ -247,23 +248,28 @@ public class ShootBehaviour : GenericBehaviour
 		isShotAlive = true;
 	}
 
-	private void RegisterHitFeedback(Transform targetRoot)
+	private bool IsHostileTarget(GameObject targetObject)
 	{
-		if (!showHitMarker || targetRoot == null)
+		FactionComponent selfFaction = GetComponentInParent<FactionComponent>();
+		FactionComponent targetFaction = targetObject != null ? targetObject.GetComponentInParent<FactionComponent>() : null;
+		if (selfFaction == null || targetFaction == null)
+		{
+			// 无阵营组件时按 hostile 处理，避免原型阶段过度阻断。
+			return true;
+		}
+
+		return selfFaction.IsHostileTo(targetFaction);
+	}
+
+	private void RegisterHitFeedback(ActorStatsComponent targetStats)
+	{
+		if (!showHitMarker || targetStats == null)
 		{
 			return;
 		}
 
-		// 先给通用命中反馈，避免因目标未挂血量组件导致“命中无反馈”。
 		hitMarkerTimer = Mathf.Max(hitMarkerTimer, hitMarkerDuration);
-
-		ActorStatsComponent stats = targetRoot.GetComponent<ActorStatsComponent>();
-		if (stats == null)
-		{
-			return;
-		}
-
-		if (stats != null && stats.IsDead)
+		if (targetStats.IsDead)
 		{
 			killMarkerTimer = Mathf.Max(killMarkerTimer, killMarkerDuration);
 			hitMarkerTimer = 0f;
