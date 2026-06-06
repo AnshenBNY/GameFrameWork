@@ -315,7 +315,7 @@ namespace GameFramework.AI
             if (targetStats != null)
             {
                 DamageContext context = new DamageContext(gameObject, targetStats.gameObject, attackDamage, DamageSourceType.Weapon);
-                targetStats.ApplyDamage(context);
+                CombatDamageManager.ApplyDamage(context);
             }
         }
 

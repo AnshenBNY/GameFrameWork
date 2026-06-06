@@ -12,6 +12,16 @@ public class WeaponUIManager : MonoBehaviour
 	private GameObject bulletMag;                       // The bullets draw inside HUD.
 	private Text totalBulletsHud;                       // The bullets amount label inside HUD.
 
+	private void OnEnable()
+	{
+		GameFramework.TPS.UI.UIManager.RegisterWeaponUIManager(this);
+	}
+
+	private void OnDisable()
+	{
+		GameFramework.TPS.UI.UIManager.UnregisterWeaponUIManager(this);
+	}
+
 	void Start ()
 	{
 		// Set up references and default values.

@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using UnityEngine;
+using GameFramework.TPS.UI;
 
 // This class is created for the example scene. There is no support for this script.
 public class HintManagement : MonoBehaviour
@@ -9,39 +11,96 @@ public class HintManagement : MonoBehaviour
 
 	private GameObject player;
 	private bool used = false;
-
-	private ControlsTutorial manager;
+	private bool initialized;
+	private bool initFailedLogged;
 
 	void Awake()
 	{
+		// Awake 仅做轻量初始化，依赖解析放到 Start。
+	}
+
+	private void Start()
+	{
+		if (TryInitializeDependencies())
+		{
+			return;
+		}
+
+		StartCoroutine(RetryInitializeDependencies());
+	}
+
+	private bool TryInitializeDependencies()
+	{
 		player = GameObject.FindGameObjectWithTag("Player");
-		manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<ControlsTutorial> ();
+		if (player == null)
+		{
+			return false;
+		}
+
+		initialized = true;
+		return true;
+	}
+
+	private IEnumerator RetryInitializeDependencies()
+	{
+		const float retryDuration = 2f;
+		const float retryInterval = 0.2f;
+		float deadline = Time.time + retryDuration;
+		while (!initialized && Time.time < deadline)
+		{
+			yield return new WaitForSeconds(retryInterval);
+			if (TryInitializeDependencies())
+			{
+				yield break;
+			}
+		}
+
+		if (!initialized && !initFailedLogged)
+		{
+			initFailedLogged = true;
+			Debug.LogError("HintManagement: initialization failed, Player not found in scene.", this);
+			enabled = false;
+		}
 	}
 
 	void OnTriggerEnter(Collider other)
 	{
+		if (!initialized)
+		{
+			return;
+		}
+
 		if((other.gameObject == player) && !used)
 		{
-			manager.setShowMsg(true);
-			manager.setMessage(message);
+			UIEventChannel.RequestShowHint(message);
 			used = true;
 		}
 	}
 
 	void OnTriggerExit(Collider other)
 	{
+		if (!initialized)
+		{
+			return;
+		}
+
 		if(other.gameObject == player)
 		{
-			manager.setShowMsg(false);
+			UIEventChannel.RequestHideHint();
 			Destroy(gameObject);
 		}
 	}
 
 	private void OnTriggerStay(Collider other)
 	{
+		if (!initialized)
+		{
+			return;
+		}
+
 		if(message2 != "" && other.gameObject == player && Input.GetKeyDown(changeMessageKey))
 		{
-			manager.setMessage(message2);
+			UIEventChannel.RequestShowHint(message2);
 		}
 	}
 }

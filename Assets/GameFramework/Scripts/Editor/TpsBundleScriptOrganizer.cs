@@ -33,8 +33,7 @@ namespace GameFramework.Editor
                 // UI
                 { "Assets/GameFramework/TPS Bundle/Cover+Shoot/Scripts/LevelScripts/WeaponUIManager.cs", "Assets/GameFramework/Scripts/TPS/UI/WeaponUIManager.cs" },
 
-                // Demo / GameController 关联（当前 Generated/GameController.prefab 仍有引用）
-                { "Assets/GameFramework/TPS Bundle/Cover+Shoot/Scripts/LevelScripts/Demo Scene/ControlsTutorial.cs", "Assets/GameFramework/Scripts/TPS/Demo/ControlsTutorial.cs" },
+                // Demo / 教学脚本
                 { "Assets/GameFramework/TPS Bundle/Cover+Shoot/Scripts/LevelScripts/Demo Scene/HintManagement.cs", "Assets/GameFramework/Scripts/TPS/Demo/HintManagement.cs" },
                 { "Assets/GameFramework/TPS Bundle/Cover+Shoot/Scripts/LevelScripts/Demo Scene/TimeTrialManager.cs", "Assets/GameFramework/Scripts/TPS/Demo/TimeTrialManager.cs" },
 

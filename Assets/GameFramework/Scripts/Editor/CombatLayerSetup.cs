@@ -32,7 +32,6 @@ namespace GameFramework.Editor
 
             EnsureTagExists(tags, "Player");
             EnsureTagExists(tags, "Enemy");
-            EnsureTagExists(tags, "GameController");
 
             SetLayerName(layers, 6, CombatLayers.PlayerLayerName);
             SetLayerName(layers, 7, CombatLayers.EnemyLayerName);

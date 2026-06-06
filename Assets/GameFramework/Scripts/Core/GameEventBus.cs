@@ -39,6 +39,12 @@ namespace GameFramework.Core
         /// </summary>
         public static event Action<GameObject> OnMonsterSpawned;
 
+        /// <summary>
+        /// 枪声警戒事件（参数：枪声世界坐标）。
+        /// 供 AI / 关卡系统监听远程枪声并触发响应。
+        /// </summary>
+        public static event Action<Vector3> OnGunshotAlert;
+
         public static void RaiseLevelStarted(string levelId) => OnLevelStarted?.Invoke(levelId);
 
         public static void RaiseLevelCompleted(string levelId) => OnLevelCompleted?.Invoke(levelId);
@@ -50,5 +56,7 @@ namespace GameFramework.Core
         public static void RaiseLevelTriggerEntered(string triggerId, GameObject actor) => OnLevelTriggerEntered?.Invoke(triggerId, actor);
 
         public static void RaiseMonsterSpawned(GameObject monster) => OnMonsterSpawned?.Invoke(monster);
+
+        public static void RaiseGunshotAlert(Vector3 origin) => OnGunshotAlert?.Invoke(origin);
     }
 }

@@ -18,7 +18,8 @@ namespace GameFramework.Editor
         private const string LevelAssetPath = GeneratedRoot + "/GF_MinimalLevel.asset";
         private const string PlayerPrefabPath = GeneratedRoot + "/Player.prefab";
         private const string EnemyPrefabPath = GeneratedRoot + "/Zombie1.prefab";
-        private const string GameControllerPrefabPath = GeneratedRoot + "/GameController.prefab";
+        private const string UiRootPrefabPath = GeneratedRoot + "/UIRoot.prefab";
+        private const string LegacyGameControllerPrefabPath = GeneratedRoot + "/GameController.prefab";
 
         [MenuItem("Tools/GameFramework/Create Runtime Scene Template")]
         public static void CreateRuntimeSceneTemplate()
@@ -35,7 +36,7 @@ namespace GameFramework.Editor
             BuildEnvironment();
             GameObject player = BuildPlayer();
             BuildCamera(player);
-            BuildGameController();
+            BuildUiRoot();
             BuildFramework(player);
 
             EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene(), ScenePath);
@@ -134,37 +135,37 @@ namespace GameFramework.Editor
             }
         }
 
-        private static void BuildGameController()
+        private static void BuildUiRoot()
         {
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(GameControllerPrefabPath);
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(UiRootPrefabPath);
+            if (prefab == null)
+            {
+                prefab = AssetDatabase.LoadAssetAtPath<GameObject>(LegacyGameControllerPrefabPath);
+            }
             if (prefab != null)
             {
                 GameObject instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
                 if (instance != null)
                 {
-                    instance.name = "GameController";
-                    instance.tag = "GameController";
+                    instance.name = "UIRoot";
+                    instance.tag = "Untagged";
+                    if (instance.GetComponent<global::GameFramework.TPS.UI.UIManager>() == null)
+                    {
+                        instance.AddComponent<global::GameFramework.TPS.UI.UIManager>();
+                    }
+                    if (instance.GetComponent<global::GameFramework.TPS.UI.UIRootInstaller>() == null)
+                    {
+                        instance.AddComponent<global::GameFramework.TPS.UI.UIRootInstaller>();
+                    }
                     return;
                 }
             }
 
-            GameObject fallback = new GameObject("GameController");
-            fallback.tag = "GameController";
+            GameObject fallback = new GameObject("UIRoot");
+            fallback.AddComponent<global::GameFramework.TPS.UI.UIManager>();
+            fallback.AddComponent<global::GameFramework.TPS.UI.UIRootInstaller>();
 
-            GameObject pickupHud = new GameObject("PickupHUD");
-            pickupHud.transform.SetParent(fallback.transform, false);
-            GameObject pickupLabel = new GameObject("Label");
-            pickupLabel.transform.SetParent(pickupHud.transform, false);
-            Text pickupText = pickupLabel.AddComponent<Text>();
-            pickupText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            pickupText.text = "Pickup";
-            pickupText.alignment = TextAnchor.MiddleCenter;
-            pickupHud.SetActive(false);
-
-            GameObject screenHud = new GameObject("ScreenHUD");
-            screenHud.transform.SetParent(fallback.transform, false);
-            BuildFallbackWeaponHud(screenHud);
-            screenHud.AddComponent<global::WeaponUIManager>();
+            // 基础 UI 结构由 UIRootInstaller 在 Awake 自动补齐。
         }
 
         private static void BuildFramework(GameObject player)
@@ -193,6 +194,10 @@ namespace GameFramework.Editor
             }
 
             GameObject root = new GameObject("GF_Root");
+            root.AddComponent<CursorStateController>();
+            root.AddComponent<CombatRuntimeConfigProvider>();
+            root.AddComponent<DamageNumberPresenter>();
+            root.AddComponent<HitEffectManager>();
             LevelManager manager = root.AddComponent<LevelManager>();
             GameBootstrap bootstrap = root.AddComponent<GameBootstrap>();
             LevelResultListener resultListener = root.AddComponent<LevelResultListener>();

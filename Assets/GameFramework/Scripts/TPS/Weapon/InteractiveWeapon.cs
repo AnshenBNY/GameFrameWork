@@ -1,5 +1,7 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using UnityEngine;
 using UnityEngine.UI;
+using GameFramework.TPS.UI;
 
 // This class corresponds to any in-game weapon interactions.
 public class InteractiveWeapon : MonoBehaviour
@@ -30,7 +32,7 @@ public class InteractiveWeapon : MonoBehaviour
 	[SerializeField]
 	private int mag, totalBullets;                            // Current mag capacity and total amount of bullets being carried.
 	private int fullMag, maxBullets;                          // Default mag capacity and total bullets for reset purposes.
-	private GameObject player, gameController;                // References to the player and the game controller.
+	private GameObject player;                                // Reference to the player.
 	private ShootBehaviour playerInventory;                   // Player's inventory to store weapons.
 	private SphereCollider interactiveRadius;                 // In-game radius of interaction with player.
 	private BoxCollider col;                                  // Weapon collider.
@@ -38,64 +40,33 @@ public class InteractiveWeapon : MonoBehaviour
 	private WeaponUIManager weaponHud;                        // Reference to on-screen weapon HUD.
 	private bool pickable;                                    // Boolean to store whether or not the weapon is pickable (player within radius).
 	private Transform pickupHUD;                              // Reference to the weapon pickup in-game label.
+	private bool initialized;
+	private bool initFailedLogged;
 
 	void Awake()
 	{
-		// Set up the references.
+		CacheSelfState();
+	}
+
+	private void Start()
+	{
+		if (TryInitializeDependencies())
+		{
+			return;
+		}
+
+		StartCoroutine(RetryInitializeDependencies());
+	}
+
+	private void CacheSelfState()
+	{
+		// Awake 仅处理本对象内状态，避免跨对象初始化顺序问题。
 		this.gameObject.name = this.label;
 		this.gameObject.layer = LayerMask.NameToLayer("Ignore Raycast");
 		foreach (Transform t in this.transform)
 		{
 			t.gameObject.layer = LayerMask.NameToLayer("Ignore Raycast");
 		}
-		player = GameObject.FindGameObjectWithTag("Player");
-		if (player == null)
-		{
-			Debug.LogError("InteractiveWeapon: No GameObject with tag 'Player' found in scene. Disable InteractiveWeapon on " + gameObject.name);
-			enabled = false;
-			return;
-		}
-		playerInventory = player.GetComponent<ShootBehaviour>();
-		if (playerInventory == null)
-		{
-			Debug.LogError("InteractiveWeapon: Player object '" + player.name + "' is missing ShootBehaviour component.");
-			enabled = false;
-			return;
-		}
-		gameController = GameObject.FindGameObjectWithTag("GameController");
-		if (gameController == null)
-		{
-			Debug.LogError("InteractiveWeapon: No GameObject with tag 'GameController' found in scene.");
-			enabled = false;
-			return;
-		}
-		// Assert that exists a on-screen HUD.
-		GameObject screenHUD = GameObject.Find("ScreenHUD");
-		if (screenHUD == null)
-		{
-			Debug.LogError("No ScreenHUD canvas found. Create ScreenHUD inside the GameController");
-			enabled = false;
-			return;
-		}
-		weaponHud = screenHUD.GetComponent<WeaponUIManager>();
-		if (weaponHud == null)
-		{
-			Debug.LogError("InteractiveWeapon: 'ScreenHUD' is missing WeaponUIManager component.");
-			enabled = false;
-			return;
-		}
-		pickupHUD = gameController.transform.Find("PickupHUD");
-		if (pickupHUD == null)
-		{
-			Debug.LogError("InteractiveWeapon: 'PickupHUD' child was not found under GameController.");
-			enabled = false;
-			return;
-		}
-
-		// Create physics components and radius of interaction.
-		col = this.transform.GetChild(0).gameObject.AddComponent<BoxCollider>();
-		CreateInteractiveRadius(col.center);
-		this.rbody = this.gameObject.AddComponent<Rigidbody>();
 
 		// Assert that an weapon slot is set up.
 		if (this.type == WeaponType.NONE)
@@ -113,13 +84,89 @@ public class InteractiveWeapon : MonoBehaviour
 		// Set default values.
 		fullMag = mag;
 		maxBullets = totalBullets;
+	}
+
+	private bool TryInitializeDependencies()
+	{
+		player = GameObject.FindGameObjectWithTag("Player");
+		if (player == null)
+		{
+			return false;
+		}
+
+		playerInventory = player.GetComponent<ShootBehaviour>();
+		if (playerInventory == null)
+		{
+			return false;
+		}
+
+		weaponHud = UIManager.GetWeaponUIManager();
+		if (weaponHud == null)
+		{
+			return false;
+		}
+
+		GameObject pickupHudGo = GameObject.Find("PickupHUD");
+		pickupHUD = pickupHudGo != null ? pickupHudGo.transform : null;
+		if (pickupHUD == null)
+		{
+			return false;
+		}
+
+		if (transform.childCount == 0)
+		{
+			return false;
+		}
+
+		Transform modelRoot = this.transform.GetChild(0);
+		col = modelRoot.GetComponent<BoxCollider>();
+		if (col == null)
+		{
+			col = modelRoot.gameObject.AddComponent<BoxCollider>();
+		}
+
+		EnsureInteractiveRadius(col.center);
+		rbody = GetComponent<Rigidbody>();
+		if (rbody == null)
+		{
+			rbody = gameObject.AddComponent<Rigidbody>();
+		}
+
 		pickupHUD.gameObject.SetActive(false);
+		initialized = true;
+		return true;
+	}
+
+	private IEnumerator RetryInitializeDependencies()
+	{
+		const float retryDuration = 2f;
+		const float retryInterval = 0.2f;
+		float deadline = Time.time + retryDuration;
+		while (!initialized && Time.time < deadline)
+		{
+			yield return new WaitForSeconds(retryInterval);
+			if (TryInitializeDependencies())
+			{
+				yield break;
+			}
+		}
+
+		if (!initialized && !initFailedLogged)
+		{
+			initFailedLogged = true;
+			Debug.LogError("InteractiveWeapon: initialization failed, missing Player/ShootBehaviour/UI references in scene.", this);
+			enabled = false;
+		}
 	}
 
 	// Create the sphere of interaction with player.
-	private void CreateInteractiveRadius(Vector3 center)
+	private void EnsureInteractiveRadius(Vector3 center)
 	{
-		interactiveRadius = this.gameObject.AddComponent<SphereCollider>();
+		interactiveRadius = GetComponent<SphereCollider>();
+		if (interactiveRadius == null)
+		{
+			interactiveRadius = gameObject.AddComponent<SphereCollider>();
+		}
 		interactiveRadius.center = center;
 		interactiveRadius.radius = 1f;
 		interactiveRadius.isTrigger = true;
@@ -127,6 +174,11 @@ public class InteractiveWeapon : MonoBehaviour
 
 	void Update()
 	{
+		if (!initialized)
+		{
+			return;
+		}
+
 		// Handle player pick weapon action.
 		if (this.pickable && Input.GetButtonDown(playerInventory.pickButton))
 		{
@@ -157,6 +209,11 @@ public class InteractiveWeapon : MonoBehaviour
 	// Handle player exiting radius of interaction.
 	private void OnTriggerExit(Collider other)
 	{
+		if (!initialized)
+		{
+			return;
+		}
+
 		if (other.gameObject == player)
 		{
 			pickable = false;
@@ -167,6 +224,11 @@ public class InteractiveWeapon : MonoBehaviour
 	// Handle player within radius of interaction.
 	void OnTriggerStay(Collider other)
 	{
+		if (!initialized)
+		{
+			return;
+		}
+
 		if (other.gameObject == player && playerInventory && playerInventory.isActiveAndEnabled)
 		{
 			pickable = true;
@@ -177,6 +239,11 @@ public class InteractiveWeapon : MonoBehaviour
 	// Draw in-game weapon pickup label.
 	private void TogglePickupHUD(bool toggle)
 	{
+		if (pickupHUD == null)
+		{
+			return;
+		}
+
 		pickupHUD.gameObject.SetActive(toggle);
 		if (toggle)
 		{
@@ -204,7 +271,7 @@ public class InteractiveWeapon : MonoBehaviour
 		this.transform.position += Vector3.up;
 		rbody.isKinematic = false;
 		this.transform.parent = null;
-		CreateInteractiveRadius(col.center);
+		EnsureInteractiveRadius(col.center);
 		this.col.enabled = true;
 		weaponHud.Toggle(false);
 	}

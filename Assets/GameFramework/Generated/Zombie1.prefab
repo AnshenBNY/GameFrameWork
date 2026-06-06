@@ -435,6 +435,8 @@ MonoBehaviour:
   stoppingDistance: 1.15
   moveSpeed: 2.35
   turnSpeed: 6.5
+  useStatusMoveSpeed: 1
+  useStatusAttackSpeed: 1
   useAnimationRootMotionForMovement: 1
   attackSpeed: 1.05
   attackDamage: 14
@@ -462,6 +464,7 @@ MonoBehaviour:
   attackTriggerBParamName: Attack_2
   hitTriggerParamName: Hit
   deadBoolParamName: Dead
+  deadTriggerParamName: Dead
   disableDamageCollidersOnDeath: 1
   destroyDelayAfterDeath: 2.8
   disableRigidbodyOnDeath: 1

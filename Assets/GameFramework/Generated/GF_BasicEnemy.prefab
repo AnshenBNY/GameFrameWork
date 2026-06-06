@@ -216,14 +216,17 @@ MonoBehaviour:
   stoppingDistance: 2
   moveSpeed: 3.5
   turnSpeed: 8
-  attackInterval: 0.8
+  useStatusMoveSpeed: 1
+  useStatusAttackSpeed: 1
+  useAnimationRootMotionForMovement: 0
+  attackSpeed: 1
   attackDamage: 10
-  attackHitDelay: 0.35
   firePoint: {fileID: 0}
   attackMask:
     serializedVersion: 2
     m_Bits: 4294967295
   useCombatLayerDefaults: 1
+  attackEventFallbackDuration: 1.1
   animator: {fileID: 0}
   animationDriveMode: 0
   idleStateName: Idle
@@ -234,6 +237,15 @@ MonoBehaviour:
   crossFadeTime: 0.12
   hitReactCooldown: 0.25
   speedParamName: Speed
-  attackTriggerParamName: Attack
+  moveSpeedParamName: MoveSpeed
+  attackSpeedParamName: AttackSpeed
+  walkBoolParamName: Walk
+  detectTriggerParamName: Detect
+  attackTriggerAParamName: Attack
+  attackTriggerBParamName: Attack_2
   hitTriggerParamName: Hit
   deadBoolParamName: Dead
+  deadTriggerParamName: Dead
+  disableDamageCollidersOnDeath: 1
+  destroyDelayAfterDeath: 2.2
+  disableRigidbodyOnDeath: 1

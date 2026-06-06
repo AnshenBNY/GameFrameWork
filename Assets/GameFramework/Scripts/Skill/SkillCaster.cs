@@ -186,7 +186,7 @@ namespace GameFramework.Skill
             if (skill.damage > 0f)
             {
                 DamageContext context = new DamageContext(gameObject, stats.gameObject, skill.damage, DamageSourceType.Skill);
-                stats.ApplyDamage(context);
+                CombatDamageManager.ApplyDamage(context);
             }
 
             if (skill.heal > 0f)

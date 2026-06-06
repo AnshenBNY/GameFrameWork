@@ -45,20 +45,19 @@ namespace GameFramework.Stats
         }
 
         /// <summary>
-        /// 应用伤害并返回最终伤害值。
+        /// 承载层接口：按最终伤害值扣血并派发事件。
+        /// 数值计算与规则决策由 CombatDamageManager 统一处理。
         /// </summary>
-        public float ApplyDamage(DamageContext context)
+        public float ApplyFinalDamage(float finalDamage)
         {
-            if (IsDead)
+            if (IsDead || finalDamage <= 0f)
             {
                 return 0f;
             }
 
-            // 先吃护甲减伤，再做最小伤害保护。
-            float reduction = CurrentAttributes.GetDamageReductionRatio();
-            float finalDamage = Mathf.Max(1f, context.RawDamage * (1f - reduction));
-            currentHealth = Mathf.Max(0f, currentHealth - finalDamage);
-            OnDamaged?.Invoke(finalDamage);
+            float applied = Mathf.Max(0f, finalDamage);
+            currentHealth = Mathf.Max(0f, currentHealth - applied);
+            OnDamaged?.Invoke(applied);
 
             if (IsDead)
             {
@@ -66,7 +65,7 @@ namespace GameFramework.Stats
                 OnDied?.Invoke();
             }
 
-            return finalDamage;
+            return applied;
         }
 
         /// <summary>

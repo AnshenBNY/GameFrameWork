@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using GameFramework.Combat;
+using GameFramework.Core;
 using GameFramework.Stats;
 using UnityEngine;
 
@@ -55,8 +56,6 @@ public class ShootBehaviour : GenericBehaviour
 	private Vector3 initialSpineRotation;                          // Initial spine rotation related to the hips bone.
 	private Vector3 initialChestRotation;                          // Initial chest rotation related to the spine bone.
 	private float shotDecay, originalShotDecay = 0.5f;             // Default shot lifetime. Use shotRateFactor to modify speed.
-	private List<GameObject> bulletHoles;                          // Bullet holes scene buffer.
-	private int bulletHoleSlot = 0;                                // Number of active bullet holes on scene.
 	private int burstShotCount = 0;                                // Number of burst shots fired.
 	private AimBehaviour aimBehaviour;                             // Reference to the aim behaviour.
 	private Texture2D originalCrosshair;                           // Original unarmed aim behaviour crosshair.
@@ -80,7 +79,7 @@ public class ShootBehaviour : GenericBehaviour
 		reloadBool = Animator.StringToHash("Reload");
 		weapons = new List<InteractiveWeapon>(new InteractiveWeapon[3]);
 		aimBehaviour = this.GetComponent<AimBehaviour>();
-		bulletHoles = new List<GameObject>();
+		HitEffectManager.EnsureInstance();
 
 		// Hide shot effects on scene.
 		if (muzzleFlash != null)
@@ -212,9 +211,12 @@ public class ShootBehaviour : GenericBehaviour
 			// Is the target organic?
 			bool isOrganic = (organicMask == (organicMask | (1 << hit.transform.root.gameObject.layer)));
 			ActorStatsComponent targetStats = hit.collider != null ? hit.collider.GetComponentInParent<ActorStatsComponent>() : null;
-			// 命中敌人/可受伤实体时不生成弹孔；仅在非生物表面生成弹孔。
-			bool placeBulletHole = !isOrganic && targetStats == null;
-			DrawShoot(hit.point, hit.normal, hit.collider.transform, !isOrganic, placeBulletHole);
+			bool isDamageable = targetStats != null;
+			// 命中敌人/可受伤实体时，不播放墙体火花，不生成弹孔。
+			bool placeSparks = !isOrganic && !isDamageable;
+			bool placeBulletHole = !isOrganic && !isDamageable;
+			HitEffectType effectType = isDamageable ? ResolveDamageableEffectType(targetStats.gameObject) : HitEffectType.Environment;
+			DrawShoot(hit.point, hit.normal, hit.collider.transform, placeSparks, placeBulletHole, effectType);
 
 			// Call the damage behaviour of target if exists.
 			if (hit.collider)
@@ -223,7 +225,7 @@ public class ShootBehaviour : GenericBehaviour
 				if (targetStats != null && IsHostileTarget(targetStats.gameObject))
 				{
 					DamageContext context = new DamageContext(gameObject, targetStats.gameObject, weapons[weapon].bulletDamage, DamageSourceType.Weapon);
-					float dealt = targetStats.ApplyDamage(context);
+					float dealt = CombatDamageManager.ApplyDamage(context);
 					if (dealt > 0f)
 					{
 						RegisterHitFeedback(targetStats);
@@ -241,8 +243,8 @@ public class ShootBehaviour : GenericBehaviour
 		}
 		// Play shot sound.
 		AudioSource.PlayClipAtPoint(weapons[weapon].shotSound, gunMuzzle.position, 5f);
-		// Trigger alert callback
-		GameObject.FindGameObjectWithTag("GameController").SendMessage("RootAlertNearby", ray.origin, SendMessageOptions.DontRequireReceiver);
+		// 枪声告警：统一走事件总线。
+		GameEventBus.RaiseGunshotAlert(ray.origin);
 		// Reset shot lifetime.
 		shotDecay = originalShotDecay;
 		isShotAlive = true;
@@ -308,7 +310,7 @@ public class ShootBehaviour : GenericBehaviour
 
 	// Manage the shot visual effects.
 	private void DrawShoot(Vector3 destination, Vector3 targetNormal, Transform parent,
-		bool placeSparks = true, bool placeBulletHole = true)
+		bool placeSparks = true, bool placeBulletHole = true, HitEffectType effectType = HitEffectType.Unknown)
 	{
 		Vector3 origin = gunMuzzle.position - gunMuzzle.right * 0.5f;
 
@@ -331,69 +333,31 @@ public class ShootBehaviour : GenericBehaviour
 			instantShot.transform.parent = shot.transform.parent;
 		}
 
-		// Create the shot sparks at target.
-		if (placeSparks && sparks != null)
+		HitEffectRequest request = new HitEffectRequest
 		{
-			GameObject instantSparks = Instantiate(sparks);
-			instantSparks.SetActive(true);
-			instantSparks.transform.position = destination;
-			instantSparks.transform.parent = sparks.transform.parent;
-		}
-
-		// Put bullet hole on the target.
-		if (placeBulletHole)
-		{
-			Quaternion hitRotation = Quaternion.FromToRotation(Vector3.back, targetNormal);
-			GameObject bullet;
-			if (bulletHoles.Count < maxBulletHoles)
-			{
-				// Instantiate new bullet if an empty slot is available.
-				bullet = CreateBulletHoleObject();
-				bulletHoles.Add(bullet);
-			}
-			else
-			{
-				// Cycle through bullet slots to reposition the oldest one.
-				bullet = bulletHoles[bulletHoleSlot];
-				if (!bullet)
-				{
-					// Target may have been destroyed with a previously parented bullet hole.
-					bullet = CreateBulletHoleObject();
-					bulletHoles[bulletHoleSlot] = bullet;
-				}
-				bulletHoleSlot++;
-				bulletHoleSlot %= maxBulletHoles;
-			}
-
-			if (!bullet)
-			{
-				return;
-			}
-
-			bullet.transform.position = destination + 0.01f * targetNormal;
-			bullet.transform.rotation = hitRotation;
-			bullet.transform.SetParent(parent);
-		}
+			Origin = origin,
+			HitPoint = destination,
+			HitNormal = targetNormal,
+			HitTransform = parent,
+			EffectType = effectType,
+			PlaceSparks = placeSparks,
+			PlaceBulletHole = placeBulletHole,
+			BulletHoleMaterial = bulletHole,
+			SparksPrefab = sparks
+		};
+		HitEffectManager.HandleHit(request);
 	}
 
-	private GameObject CreateBulletHoleObject()
+	private HitEffectType ResolveDamageableEffectType(GameObject targetObject)
 	{
-		GameObject bullet = GameObject.CreatePrimitive(PrimitiveType.Quad);
-		MeshRenderer renderer = bullet.GetComponent<MeshRenderer>();
-		if (renderer != null && bulletHole != null)
+		FactionComponent selfFaction = GetComponentInParent<FactionComponent>();
+		FactionComponent targetFaction = targetObject != null ? targetObject.GetComponentInParent<FactionComponent>() : null;
+		if (selfFaction == null || targetFaction == null)
 		{
-			renderer.material = bulletHole;
+			return HitEffectType.DamageableNeutral;
 		}
 
-		Collider col = bullet.GetComponent<Collider>();
-		if (col != null)
-		{
-			col.enabled = false;
-		}
-
-		bullet.transform.localScale = Vector3.one * 0.07f;
-		bullet.name = "BulletHole";
-		return bullet;
+		return selfFaction.IsHostileTo(targetFaction) ? HitEffectType.DamageableHostile : HitEffectType.DamageableFriendly;
 	}
 
 	// Change the active weapon.
