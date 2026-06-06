@@ -9,7 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8534989456413295847}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: LeftHandTarget
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -24,10 +24,10 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2978332979638981995}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.5075994, y: 0.045527257, z: 0.8502971, w: 0.13139611}
-  m_LocalPosition: {x: -0.085, y: 0.408, z: 0.354}
+  m_LocalRotation: {x: -0.34663084, y: -0.12155443, z: 0.8954149, w: 0.25160268}
+  m_LocalPosition: {x: 0.062140793, y: 0.3107975, z: 0.4750591}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: -12.17, y: -60.555, z: 169.554}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
