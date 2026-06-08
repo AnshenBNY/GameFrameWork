@@ -1,3 +1,4 @@
+using GameFramework.Level;
 using GameFramework.TPS.Player;
 using GameFramework.TPS.UI;
 using UnityEngine;
@@ -6,7 +7,7 @@ namespace GameFramework.Core
 {
     /// <summary>
     /// 运行时依赖注入入口：
-    /// 集中持有 Player / UI 等跨模块引用，避免业务脚本分散 Find/Tag 查找。
+    /// 集中持有 Player / UI / Level 等跨模块引用，避免业务脚本分散 Find/Tag 查找。
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(-100)]
@@ -15,11 +16,13 @@ namespace GameFramework.Core
         private static RuntimeContext _instance;
         private static UIManager _pendingUiManager;
         private static Transform _pendingPickupHud;
+        private static LevelManager _pendingLevelManager;
 
         [Header("场景引用（优先 Inspector 绑定）")]
         [SerializeField] private GameObject player;
         [SerializeField] private UIManager uiManager;
         [SerializeField] private Transform pickupHud;
+        [SerializeField] private LevelManager levelManager;
 
         [Header("兜底（仅未绑定时使用一次）")]
         [SerializeField] private string playerTag = "Player";
@@ -29,12 +32,15 @@ namespace GameFramework.Core
         public GameObject Player => player;
         public UIManager UIManager => uiManager;
         public Transform PickupHud => pickupHud;
+        public LevelManager LevelManager => levelManager;
         public WeaponUIManager WeaponUIManager => uiManager != null ? uiManager.WeaponUIManager : null;
         public GameplayHintUI GameplayHintUI => uiManager != null ? uiManager.GameplayHintUI : null;
+        public Transform PlayerTransform => player != null ? player.transform : null;
 
         public bool IsPlayerReady => player != null;
         public bool IsUiReady => uiManager != null && WeaponUIManager != null;
         public bool IsPickupHudReady => pickupHud != null;
+        public bool IsLevelReady => levelManager != null;
 
         private void Awake()
         {
@@ -56,6 +62,12 @@ namespace GameFramework.Core
             {
                 BindPickupHud(_pendingPickupHud);
                 _pendingPickupHud = null;
+            }
+
+            if (_pendingLevelManager != null)
+            {
+                BindLevelManager(_pendingLevelManager);
+                _pendingLevelManager = null;
             }
 
             ResolveReferences();
@@ -101,6 +113,22 @@ namespace GameFramework.Core
             _pendingPickupHud = pickupHudTransform;
         }
 
+        public static void RegisterLevelManager(LevelManager manager)
+        {
+            if (manager == null)
+            {
+                return;
+            }
+
+            if (_instance != null)
+            {
+                _instance.BindLevelManager(manager);
+                return;
+            }
+
+            _pendingLevelManager = manager;
+        }
+
         public void BindPlayer(GameObject playerObject)
         {
             player = playerObject;
@@ -117,11 +145,26 @@ namespace GameFramework.Core
             pickupHud = pickupHudTransform;
         }
 
+        public void BindLevelManager(LevelManager manager)
+        {
+            levelManager = manager;
+        }
+
         /// <summary>
         /// 解析并缓存场景引用。仅在 Awake 或显式调用时执行，不在 Update 中重复查找。
         /// </summary>
         public void ResolveReferences()
         {
+            if (levelManager == null)
+            {
+                levelManager = GetComponent<LevelManager>();
+            }
+
+            if (levelManager == null && _pendingLevelManager != null)
+            {
+                BindLevelManager(_pendingLevelManager);
+            }
+
             if (player == null && !string.IsNullOrEmpty(playerTag))
             {
                 GameObject tagged = GameObject.FindGameObjectWithTag(playerTag);
@@ -153,6 +196,12 @@ namespace GameFramework.Core
         {
             basicBehaviour = player != null ? player.GetComponent<BasicBehaviour>() : null;
             return basicBehaviour != null;
+        }
+
+        public bool TryGetLevelManager(out LevelManager manager)
+        {
+            manager = levelManager;
+            return manager != null;
         }
     }
 }

@@ -223,6 +223,7 @@ namespace GameFramework.Editor
 
             SerializedObject contextSo = new SerializedObject(runtimeContext);
             contextSo.FindProperty("player").objectReferenceValue = player;
+            contextSo.FindProperty("levelManager").objectReferenceValue = manager;
             GameObject uiRoot = GameObject.Find("UIRoot");
             if (uiRoot != null)
             {

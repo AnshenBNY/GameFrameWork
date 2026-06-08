@@ -11,22 +11,33 @@ namespace GameFramework.Level
     {
         [SerializeField] private LevelManager levelManager;
         [SerializeField] private GameObject player;
-        [SerializeField] private string playerTag = "Player";
 
         private void Awake()
         {
+            ResolveDependencies();
+        }
+
+        private void ResolveDependencies()
+        {
             if (levelManager == null)
             {
-                levelManager = FindObjectOfType<LevelManager>();
+                levelManager = GetComponent<LevelManager>();
             }
 
-            if (player == null && !string.IsNullOrEmpty(playerTag))
+            RuntimeContext context = RuntimeContext.Instance;
+            if (context == null)
             {
-                GameObject tagged = GameObject.FindGameObjectWithTag(playerTag);
-                if (tagged != null)
-                {
-                    player = tagged;
-                }
+                return;
+            }
+
+            if (levelManager == null)
+            {
+                context.TryGetLevelManager(out levelManager);
+            }
+
+            if (player == null)
+            {
+                player = context.Player;
             }
         }
 

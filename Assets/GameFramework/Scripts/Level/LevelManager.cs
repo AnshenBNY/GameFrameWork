@@ -78,6 +78,11 @@ namespace GameFramework.Level
             }
         }
 
+        private void Awake()
+        {
+            RuntimeContext.RegisterLevelManager(this);
+        }
+
         private void OnEnable()
         {
             GameEventBus.OnActorDied += HandleActorDied;
@@ -356,12 +361,15 @@ namespace GameFramework.Level
                 return runtimeRoot;
             }
 
-            GameObject root = GameObject.Find("LevelRuntimeRoot");
-            if (root == null)
+            Transform existing = transform.Find("LevelRuntimeRoot");
+            if (existing != null)
             {
-                root = new GameObject("LevelRuntimeRoot");
+                runtimeRoot = existing;
+                return runtimeRoot;
             }
 
+            GameObject root = new GameObject("LevelRuntimeRoot");
+            root.transform.SetParent(transform, false);
             runtimeRoot = root.transform;
             return runtimeRoot;
         }
