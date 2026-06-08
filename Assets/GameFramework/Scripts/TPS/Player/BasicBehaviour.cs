@@ -1,8 +1,14 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.Scripting.APIUpdating;
+using GameFramework.TPS.ThirdPersonCamera;
+
+namespace GameFramework.TPS.Player
+{
 
 // This class manages which player behaviour is active or overriding, and call its local functions.
 // Contains basic setup and common functions used by all the player behaviours.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "BasicBehaviour")]
 public class BasicBehaviour : MonoBehaviour
 {
 	public Transform playerCamera;                        // Reference to the camera that focus the player.
@@ -328,6 +334,7 @@ public class BasicBehaviour : MonoBehaviour
 
 // This is the base class for all player behaviours, any custom behaviour must inherit from this.
 // Contains references to local components that may differ according to the behaviour itself.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "GenericBehaviour")]
 public abstract class GenericBehaviour : MonoBehaviour
 {
 	//protected Animator anim;                       // Reference to the Animator component.
@@ -368,4 +375,5 @@ public abstract class GenericBehaviour : MonoBehaviour
 	{
 		return canSprint;
 	}
+}
 }

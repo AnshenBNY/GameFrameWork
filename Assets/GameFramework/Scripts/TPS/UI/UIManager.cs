@@ -1,3 +1,4 @@
+using GameFramework.Core;
 using UnityEngine;
 
 namespace GameFramework.TPS.UI
@@ -5,7 +6,7 @@ namespace GameFramework.TPS.UI
     /// <summary>
     /// 最小 UI 管理骨架：
     /// - 统一提供 GameplayHintUI / WeaponUIManager 访问入口
-    /// - 允许业务侧通过静态方法查找，减少硬编码对象名依赖
+    /// - 通过 RuntimeContext 注入，避免运行时 Find 查找
     /// </summary>
     [DisallowMultipleComponent]
     public class UIManager : MonoBehaviour
@@ -15,7 +16,7 @@ namespace GameFramework.TPS.UI
 
         private static UIManager _instance;
 
-        public static UIManager Instance => _instance;
+        public static UIManager Instance => _instance ?? RuntimeContext.Instance?.UIManager;
 
         public GameplayHintUI GameplayHintUI => gameplayHintUI;
         public WeaponUIManager WeaponUIManager => weaponUIManager;
@@ -29,7 +30,8 @@ namespace GameFramework.TPS.UI
             }
 
             _instance = this;
-            ResolveReferences();
+            ResolveReferencesFromHierarchy();
+            RuntimeContext.RegisterUiManager(this);
         }
 
         private void OnDestroy()
@@ -42,34 +44,16 @@ namespace GameFramework.TPS.UI
 
         public static GameplayHintUI GetGameplayHintUI()
         {
-            if (_instance == null)
-            {
-                _instance = FindObjectOfType<UIManager>();
-            }
-
-            if (_instance == null)
-            {
-                return FindObjectOfType<GameplayHintUI>();
-            }
-
-            _instance.ResolveReferences();
-            return _instance.gameplayHintUI;
+            UIManager manager = Instance;
+            manager?.ResolveReferencesFromHierarchy();
+            return manager != null ? manager.gameplayHintUI : null;
         }
 
         public static WeaponUIManager GetWeaponUIManager()
         {
-            if (_instance == null)
-            {
-                _instance = FindObjectOfType<UIManager>();
-            }
-
-            if (_instance == null)
-            {
-                return FindObjectOfType<WeaponUIManager>();
-            }
-
-            _instance.ResolveReferences();
-            return _instance.weaponUIManager;
+            UIManager manager = Instance;
+            manager?.ResolveReferencesFromHierarchy();
+            return manager != null ? manager.weaponUIManager : null;
         }
 
         public static void RegisterGameplayHintUI(GameplayHintUI ui)
@@ -79,10 +63,10 @@ namespace GameFramework.TPS.UI
                 return;
             }
 
-            EnsureInstance();
-            if (_instance != null)
+            UIManager manager = Instance;
+            if (manager != null)
             {
-                _instance.gameplayHintUI = ui;
+                manager.gameplayHintUI = ui;
             }
         }
 
@@ -93,10 +77,10 @@ namespace GameFramework.TPS.UI
                 return;
             }
 
-            EnsureInstance();
-            if (_instance != null && _instance.gameplayHintUI == ui)
+            UIManager manager = Instance;
+            if (manager != null && manager.gameplayHintUI == ui)
             {
-                _instance.gameplayHintUI = null;
+                manager.gameplayHintUI = null;
             }
         }
 
@@ -107,10 +91,10 @@ namespace GameFramework.TPS.UI
                 return;
             }
 
-            EnsureInstance();
-            if (_instance != null)
+            UIManager manager = Instance;
+            if (manager != null)
             {
-                _instance.weaponUIManager = ui;
+                manager.weaponUIManager = ui;
             }
         }
 
@@ -121,31 +105,23 @@ namespace GameFramework.TPS.UI
                 return;
             }
 
-            EnsureInstance();
-            if (_instance != null && _instance.weaponUIManager == ui)
+            UIManager manager = Instance;
+            if (manager != null && manager.weaponUIManager == ui)
             {
-                _instance.weaponUIManager = null;
+                manager.weaponUIManager = null;
             }
         }
 
-        private static void EnsureInstance()
-        {
-            if (_instance == null)
-            {
-                _instance = FindObjectOfType<UIManager>();
-            }
-        }
-
-        private void ResolveReferences()
+        public void ResolveReferencesFromHierarchy()
         {
             if (gameplayHintUI == null)
             {
-                gameplayHintUI = FindObjectOfType<GameplayHintUI>();
+                gameplayHintUI = GetComponentInChildren<GameplayHintUI>(true);
             }
 
             if (weaponUIManager == null)
             {
-                weaponUIManager = FindObjectOfType<WeaponUIManager>();
+                weaponUIManager = GetComponentInChildren<WeaponUIManager>(true);
             }
         }
     }

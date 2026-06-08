@@ -1,6 +1,11 @@
 ﻿using UnityEngine;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.Player
+{
 
 // MoveBehaviour inherits from GenericBehaviour. This class corresponds to basic walk and run behaviour, it is the default behaviour.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "MoveBehaviour")]
 public class MoveBehaviour : GenericBehaviour
 {
 	public float walkSpeed = 0.15f;                 // Default walk speed.
@@ -185,4 +190,5 @@ public class MoveBehaviour : GenericBehaviour
 		GetComponent<CapsuleCollider>().material.dynamicFriction = 0.6f;
 		GetComponent<CapsuleCollider>().material.staticFriction = 0.6f;
 	}
+}
 }

@@ -1,7 +1,12 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.Demo
+{
 
 // This class is created for the example scene. There is no support for this script.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "TimeTrialManager")]
 public class TimeTrialManager : MonoBehaviour
 {
 	public Vector3 playerPosition;
@@ -61,4 +66,5 @@ public class TimeTrialManager : MonoBehaviour
 			PlayerPrefs.SetFloat("bestTime", bestTime);
 		}
 	}
+}
 }

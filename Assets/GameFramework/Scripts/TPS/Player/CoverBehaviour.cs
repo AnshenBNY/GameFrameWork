@@ -1,7 +1,12 @@
 ﻿using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.Player
+{
 
 // CoverBehaviour inherits from GenericBehaviour. This class corresponds to take cover and covering moves behaviour.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "CoverBehaviour")]
 public class CoverBehaviour : GenericBehaviour
 {
 	public string coverButton = "Fire3";             // Default cover button (take/exit/turn/change/jump over).
@@ -787,4 +792,5 @@ public class CoverBehaviour : GenericBehaviour
 			hips.position += 0.09f * hips.up;
 		}
 	}
+}
 }

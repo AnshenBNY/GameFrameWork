@@ -1,7 +1,12 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.UI
+{
 
 // This class corresponds to the weapon screen HUD features.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "WeaponUIManager")]
 public class WeaponUIManager : MonoBehaviour
 {
 	public Color bulletColor = Color.white;             // Color of the available bullets inside weapon HUD.
@@ -14,12 +19,12 @@ public class WeaponUIManager : MonoBehaviour
 
 	private void OnEnable()
 	{
-		GameFramework.TPS.UI.UIManager.RegisterWeaponUIManager(this);
+		UIManager.RegisterWeaponUIManager(this);
 	}
 
 	private void OnDisable()
 	{
-		GameFramework.TPS.UI.UIManager.UnregisterWeaponUIManager(this);
+		UIManager.UnregisterWeaponUIManager(this);
 	}
 
 	void Start ()
@@ -72,4 +77,5 @@ public class WeaponUIManager : MonoBehaviour
 		// Update bullet count label.
 		totalBulletsHud.text = bulletsLeft + "/" + extraBullets;
 	}
+}
 }

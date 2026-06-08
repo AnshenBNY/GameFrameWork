@@ -1,6 +1,11 @@
 ﻿using UnityEngine;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.Player
+{
 
 // This class is created for the example scene. There is no support for this script.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "Footsteps")]
 public class Footsteps : MonoBehaviour
 {
 	public AudioClip[] stepClips;
@@ -89,4 +94,5 @@ public class Footsteps : MonoBehaviour
 		}
 		AudioSource.PlayClipAtPoint(stepClips[index], transform.position, 0.2f);
 	}
+}
 }

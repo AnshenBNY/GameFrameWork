@@ -1,6 +1,11 @@
 ﻿using UnityEngine;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.ThirdPersonCamera
+{
 
 // This class corresponds to the 3rd person camera features.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "ThirdPersonOrbitCam")]
 public class ThirdPersonOrbitCam : MonoBehaviour
 {
 	public Transform player;                                           // Player's reference.
@@ -302,4 +307,5 @@ public class ThirdPersonOrbitCam : MonoBehaviour
 	{
 		return Mathf.Abs((finalPivotOffset - smoothPivotOffset).magnitude);
 	}
+}
 }
