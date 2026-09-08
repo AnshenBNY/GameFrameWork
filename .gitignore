@@ -5,6 +5,17 @@ Obj/
 Build/
 Builds/
 Logs/
+MemoryCaptures/
+
+# 忽略本机编辑器个人设置（布局、搜索索引等，不应共享）
+UserSettings/
+
+# 忽略 IDE 工程文件（可由 Tools/GameFramework/Regenerate Project Files 重新生成）
+*.csproj
+*.sln
+*.user
+.vs/
+.idea/
 
 # 忽略 Windows 系统文件
 Thumbs.db
