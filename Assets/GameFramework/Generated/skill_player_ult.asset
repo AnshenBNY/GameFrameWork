@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   skillId: skill_player_ult
   displayName: Ultimate Burst
-  skillType: 0
+  skillType: 2
   targetMode: 2
   cooldown: 12
   energyCost: 0

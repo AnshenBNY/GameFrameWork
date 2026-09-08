@@ -26,6 +26,7 @@ namespace GameFramework.Editor
         {
             CombatLayerSetup.EnsureProjectLayers();
             ZombiePrefabConfigurator.ConfigureZombieEnemyPrefab();
+            PlayerPrefabConfigurator.ConfigurePlayerPrefab();
             EnemyPrefabBuilder.CreateBasicEnemyPrefab();
             LevelTemplateBuilder.CreateMinimalLevelTemplate();
 
@@ -38,6 +39,8 @@ namespace GameFramework.Editor
             BuildCamera(player);
             BuildUiRoot();
             BuildFramework(player);
+            BuildWeaponPickup(player);
+            BakeNavMesh();
 
             EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene(), ScenePath);
             AssetDatabase.SaveAssets();
@@ -55,6 +58,8 @@ namespace GameFramework.Editor
             {
                 CombatLayerSetup.SetLayerRecursively(ground, CombatLayers.Environment);
             }
+            // 标记为导航静态，供 NavMesh 烘焙识别为可行走地面。
+            GameObjectUtility.SetStaticEditorFlags(ground, StaticEditorFlags.NavigationStatic);
 
             for (int i = 0; i < 4; i++)
             {
@@ -79,13 +84,33 @@ namespace GameFramework.Editor
                 {
                     CombatLayerSetup.SetLayerRecursively(wall, CombatLayers.Environment);
                 }
+                // 墙体作为导航障碍参与烘焙。
+                GameObjectUtility.SetStaticEditorFlags(wall, StaticEditorFlags.NavigationStatic);
             }
+
+            // 内部障碍：在起始区(z≈0)与敌人(z≈14~18)之间放置两道错开的掩体墙，
+            // 形成 Z 字路径，用于直观验证 NavMesh 绕障寻路（避开玩家需到达的 start_zone）。
+            CreateObstacle("Obstacle_A", new Vector3(-5f, 1.5f, 10f), new Vector3(12f, 3f, 0.8f));
+            CreateObstacle("Obstacle_B", new Vector3(5f, 1.5f, 5f), new Vector3(12f, 3f, 0.8f));
 
             GameObject directional = new GameObject("Directional Light");
             Light light = directional.AddComponent<Light>();
             light.type = LightType.Directional;
             light.intensity = 1f;
             directional.transform.rotation = Quaternion.Euler(45f, -35f, 0f);
+        }
+
+        private static void CreateObstacle(string name, Vector3 position, Vector3 size)
+        {
+            GameObject obstacle = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            obstacle.name = name;
+            obstacle.transform.position = position;
+            obstacle.transform.localScale = size;
+            if (CombatLayers.Environment >= 0)
+            {
+                CombatLayerSetup.SetLayerRecursively(obstacle, CombatLayers.Environment);
+            }
+            GameObjectUtility.SetStaticEditorFlags(obstacle, StaticEditorFlags.NavigationStatic);
         }
 
         private static GameObject BuildPlayer()
@@ -112,6 +137,27 @@ namespace GameFramework.Editor
 
             ConfigurePlayerRuntimeDependencies(player);
             return player;
+        }
+
+        private static void BuildWeaponPickup(GameObject player)
+        {
+            GameObject akPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(GeneratedRoot + "/AK.prefab");
+            if (akPrefab == null)
+            {
+                Debug.LogWarning($"未找到武器预制体：{GeneratedRoot}/AK.prefab，跳过武器生成。");
+                return;
+            }
+
+            GameObject ak = PrefabUtility.InstantiatePrefab(akPrefab) as GameObject;
+            if (ak == null)
+            {
+                return;
+            }
+
+            ak.name = "AK_Pickup";
+            // 放在玩家正前方（+z 朝敌人方向），玩家上前按 Interact 即可拾取。
+            Vector3 basePos = player != null ? player.transform.position : Vector3.zero;
+            ak.transform.position = basePos + new Vector3(1.5f, 1f, 2f);
         }
 
         private static void BuildCamera(GameObject player)
@@ -203,6 +249,13 @@ namespace GameFramework.Editor
             LevelResultListener resultListener = root.AddComponent<LevelResultListener>();
             root.AddComponent<LevelDebugHud>();
 
+            // 玩家 HUD 与关卡结算界面各自持有独立 Canvas，放在专用节点下。
+            GameObject playerHudGo = new GameObject("PlayerHUD");
+            playerHudGo.AddComponent<global::GameFramework.UI.PlayerHud>();
+
+            GameObject resultScreenGo = new GameObject("LevelResultScreen");
+            resultScreenGo.AddComponent<global::GameFramework.UI.LevelResultScreen>();
+
             SerializedObject managerSo = new SerializedObject(manager);
             managerSo.FindProperty("currentLevel").objectReferenceValue = level;
             managerSo.ApplyModifiedPropertiesWithoutUndo();
@@ -216,6 +269,17 @@ namespace GameFramework.Editor
             resultSo.FindProperty("levelManager").objectReferenceValue = manager;
             resultSo.FindProperty("player").objectReferenceValue = player;
             resultSo.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>
+        /// 为当前场景烘焙 NavMesh（基于标记为导航静态的地面/墙体）。
+        /// 使用传统 NavMeshBuilder，无需额外安装 AI Navigation 包。
+        /// </summary>
+        private static void BakeNavMesh()
+        {
+#pragma warning disable 618
+            UnityEditor.AI.NavMeshBuilder.BuildNavMesh();
+#pragma warning restore 618
         }
 
         private static void EnsureFolder(string fullPath)

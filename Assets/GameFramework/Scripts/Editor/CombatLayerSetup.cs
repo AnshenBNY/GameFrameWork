@@ -55,29 +55,6 @@ namespace GameFramework.Editor
             }
         }
 
-        public static void ApplySampleSceneLayers()
-        {
-            EnsureProjectLayers();
-
-            int playerLayer = CombatLayers.Player;
-            int enemyLayer = CombatLayers.Enemy;
-            int environmentLayer = CombatLayers.Environment;
-
-            GameObject player = GameObject.Find("Player");
-            if (player != null && playerLayer >= 0)
-            {
-                SetLayerRecursively(player, playerLayer);
-            }
-
-            GameObject ground = GameObject.Find("Ground");
-            if (ground != null && environmentLayer >= 0)
-            {
-                SetLayerRecursively(ground, environmentLayer);
-            }
-
-            
-        }
-
         private static SerializedObject GetTagManager()
         {
             Object[] assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset");

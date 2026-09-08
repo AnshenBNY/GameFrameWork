@@ -53,6 +53,46 @@ namespace GameFramework.Skill
             return Time.time >= endTime;
         }
 
+        /// <summary>
+        /// 指定槽位技能的剩余冷却时间（秒）。0 表示就绪或未装配。
+        /// </summary>
+        public float GetCooldownRemaining(SkillType type)
+        {
+            SkillDefinition skill = loadout.GetByType(type);
+            if (skill == null)
+            {
+                return 0f;
+            }
+
+            if (!_cooldownEndTimes.TryGetValue(skill.skillId, out float endTime))
+            {
+                return 0f;
+            }
+
+            return Mathf.Max(0f, endTime - Time.time);
+        }
+
+        /// <summary>
+        /// 指定槽位技能的冷却进度：1 = 刚施放，0 = 冷却完毕/就绪。
+        /// 便于 HUD 直接驱动径向填充。
+        /// </summary>
+        public float GetCooldownRatio(SkillType type)
+        {
+            SkillDefinition skill = loadout.GetByType(type);
+            if (skill == null)
+            {
+                return 0f;
+            }
+
+            float remaining = GetCooldownRemaining(type);
+            if (remaining <= 0f)
+            {
+                return 0f;
+            }
+
+            return Mathf.Clamp01(remaining / Mathf.Max(0.0001f, skill.cooldown));
+        }
+
         private void ExecuteSkill(SkillDefinition skill)
         {
             Vector3 center = transform.position + transform.forward * Mathf.Max(0f, skill.castDistance);

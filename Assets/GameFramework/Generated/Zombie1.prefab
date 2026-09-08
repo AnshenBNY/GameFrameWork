@@ -213,6 +213,8 @@ GameObject:
   - component: {fileID: 2075371450933228766}
   - component: {fileID: 4364577532629767406}
   - component: {fileID: 5093155952367804437}
+  - component: {fileID: 5754971463414404757}
+  - component: {fileID: 8300196689837612188}
   m_Layer: 7
   m_Name: Zombie1
   m_TagString: Enemy
@@ -446,6 +448,14 @@ MonoBehaviour:
     m_Bits: 4294967295
   useCombatLayerDefaults: 1
   attackEventFallbackDuration: 1.15
+  useNavMeshAgent: 1
+  respondToGunshots: 1
+  hearingRadius: 28
+  investigateDuration: 6
+  useSkills: 1
+  enemySkillType: 0
+  skillRange: 2.6
+  skillCastLockDuration: 1.15
   animator: {fileID: 2683630843551001055}
   animationDriveMode: 2
   idleStateName: Idle
@@ -468,6 +478,48 @@ MonoBehaviour:
   disableDamageCollidersOnDeath: 1
   destroyDelayAfterDeath: 2.8
   disableRigidbodyOnDeath: 1
+--- !u!114 &5754971463414404757
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 455307330647234322}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb88cb639d1aa3b489459379cbf07887, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  loadout:
+    active1: {fileID: 11400000, guid: a85e5e4dcf343c348aeac65d581af65b, type: 2}
+    active2: {fileID: 0}
+    ultimate: {fileID: 11400000, guid: 0c59bf1c1ad3c65449e076d2b2f127e2, type: 2}
+    passive: {fileID: 0}
+  affectMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+--- !u!195 &8300196689837612188
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 455307330647234322}
+  m_Enabled: 1
+  m_AgentTypeID: 0
+  m_Radius: 0.35
+  m_Speed: 2.35
+  m_Acceleration: 40
+  avoidancePriority: 50
+  m_AngularSpeed: 720
+  m_StoppingDistance: 1.15
+  m_AutoTraverseOffMeshLink: 1
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 1.8
+  m_BaseOffset: 0
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4
 --- !u!1 &486599374393415656
 GameObject:
   m_ObjectHideFlags: 0

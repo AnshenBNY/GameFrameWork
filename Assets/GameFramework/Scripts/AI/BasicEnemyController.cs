@@ -1,14 +1,18 @@
 using GameFramework.Combat;
+using GameFramework.Core;
+using GameFramework.Skill;
 using GameFramework.Stats;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace GameFramework.AI
 {
     /// <summary>
-    /// 最小敌人控制器：
-    /// - 检测玩家
-    /// - 追击至射程
-    /// - 射线攻击（优先打 ActorStatsComponent）
+    /// 敌人控制器：
+    /// - 检测玩家、追击至射程、射线/技能攻击（优先打 ActorStatsComponent）
+    /// - 可选 NavMesh 寻路（无 NavMesh 时自动降级为直线移动）
+    /// - 可选枪声警戒：听到远处枪声后前往侦查
+    /// - 可选技能施放：在技能范围内用 SkillCaster 释放敌人技能
     /// </summary>
     [RequireComponent(typeof(ActorStatsComponent))]
     public class BasicEnemyController : MonoBehaviour
@@ -48,6 +52,25 @@ namespace GameFramework.AI
         [SerializeField] private LayerMask attackMask = ~0;
         [SerializeField] private bool useCombatLayerDefaults = true;
         [SerializeField] private float attackEventFallbackDuration = 1.1f;
+
+        [Header("NavMesh 寻路")]
+        [Tooltip("开启后使用 NavMeshAgent 寻路（需场景已烘焙 NavMesh）；未在 NavMesh 上时自动降级为直线移动。")]
+        [SerializeField] private bool useNavMeshAgent = false;
+
+        [Header("枪声警戒")]
+        [Tooltip("开启后监听 GameEventBus.OnGunshotAlert，听到范围内枪声会前往侦查。")]
+        [SerializeField] private bool respondToGunshots = true;
+        [SerializeField] private float hearingRadius = 28f;
+        [Tooltip("侦查持续时间：抵达枪声点或超时后回到待机。")]
+        [SerializeField] private float investigateDuration = 6f;
+
+        [Header("技能")]
+        [Tooltip("开启后在技能范围内优先释放技能（需本对象挂 SkillCaster 并配置 loadout）。")]
+        [SerializeField] private bool useSkills = false;
+        [SerializeField] private SkillType enemySkillType = SkillType.Active1;
+        [SerializeField] private float skillRange = 4f;
+        [Tooltip("技能施放后的动作锁定时间（秒）。")]
+        [SerializeField] private float skillCastLockDuration = 1.2f;
 
         [Header("动画（状态名驱动）")]
         [SerializeField] private Animator animator;
@@ -114,6 +137,15 @@ namespace GameFramework.AI
         private Rigidbody _rigidbody;
         private bool _hasDetectedTarget;
         private bool _hasWarnedMissingStatsForSpeedSource;
+        private NavMeshAgent _agent;
+        private SkillCaster _skillCaster;
+        private Vector3 _investigatePosition;
+        private float _investigateUntil;
+
+        /// <summary>当前是否可通过 NavMeshAgent 移动（已启用且已挂到 NavMesh 上）。</summary>
+        private bool UsingAgent => _agent != null && _agent.isActiveAndEnabled && _agent.isOnNavMesh;
+
+        private bool IsInvestigating => Time.time < _investigateUntil;
 
         private void Awake()
         {
@@ -142,6 +174,8 @@ namespace GameFramework.AI
             _rigidbody = GetComponent<Rigidbody>();
             SetupAnimationDrive();
             SyncRootMotionSetting();
+            SetupSkillCaster();
+            SetupAgent();
 
             if (_stats != null)
             {
@@ -150,6 +184,19 @@ namespace GameFramework.AI
             }
 
             PlayState(_idleHash, true);
+        }
+
+        private void OnEnable()
+        {
+            if (respondToGunshots)
+            {
+                GameEventBus.OnGunshotAlert += HandleGunshotAlert;
+            }
+        }
+
+        private void OnDisable()
+        {
+            GameEventBus.OnGunshotAlert -= HandleGunshotAlert;
         }
 
         private void OnValidate()
@@ -167,6 +214,12 @@ namespace GameFramework.AI
             Vector3 delta = animator.deltaPosition;
             delta.y = 0f;
             transform.position += delta;
+
+            // 根运动 + NavMesh：把代理内部位置同步到实际位置，保证寻路拐点持续更新。
+            if (UsingAgent)
+            {
+                _agent.nextPosition = transform.position;
+            }
         }
 
         private void OnDestroy()
@@ -206,22 +259,40 @@ namespace GameFramework.AI
             if (distance > detectRange)
             {
                 _hasDetectedTarget = false;
-                PlayIdle();
+                // 未发现玩家：若正在侦查枪声，则前往侦查点，否则待机。
+                if (IsInvestigating)
+                {
+                    MoveTowardPosition(_investigatePosition);
+                    PlayMove();
+                }
+                else
+                {
+                    PlayIdle();
+                }
                 return;
             }
 
             if (!_hasDetectedTarget)
             {
                 _hasDetectedTarget = true;
+                // 发现玩家后停止侦查。
+                _investigateUntil = 0f;
                 TriggerDetect();
             }
-
-            FaceToTarget(toTarget);
 
             if (distance > attackRange)
             {
                 MoveToward(toTarget, distance);
+                // 移动时朝向路径拐点（NavMesh 绕障），无 NavMesh 时朝向玩家。
+                FaceToTarget(GetSteerDirection(toTarget));
                 PlayMove();
+                return;
+            }
+
+            // 进入攻击范围：朝向玩家，优先尝试技能，其次普通攻击。
+            FaceToTarget(toTarget);
+            if (useSkills && TryCastSkill(distance))
+            {
                 return;
             }
 
@@ -266,6 +337,17 @@ namespace GameFramework.AI
                 return;
             }
 
+            if (UsingAgent)
+            {
+                _agent.speed = GetEffectiveMoveSpeed();
+                _agent.stoppingDistance = stoppingDistance;
+                if (target != null)
+                {
+                    _agent.SetDestination(target.position);
+                }
+                return;
+            }
+
             if (ShouldUseAnimationRootMotion())
             {
                 return;
@@ -274,6 +356,40 @@ namespace GameFramework.AI
             Vector3 moveDir = toTarget.normalized;
             moveDir.y = 0f;
             transform.position += moveDir * (GetEffectiveMoveSpeed() * Time.deltaTime);
+        }
+
+        /// <summary>
+        /// 向指定世界坐标移动（用于枪声侦查）。支持 NavMesh 与直线两种方式。
+        /// </summary>
+        private void MoveTowardPosition(Vector3 worldPosition)
+        {
+            Vector3 to = worldPosition - transform.position;
+            to.y = 0f;
+            float dist = to.magnitude;
+
+            FaceToTarget(GetSteerDirection(to));
+
+            // 抵达侦查点：结束侦查。
+            if (dist <= Mathf.Max(0.6f, stoppingDistance))
+            {
+                _investigateUntil = 0f;
+                return;
+            }
+
+            if (UsingAgent)
+            {
+                _agent.speed = GetEffectiveMoveSpeed();
+                _agent.stoppingDistance = stoppingDistance;
+                _agent.SetDestination(worldPosition);
+                return;
+            }
+
+            if (ShouldUseAnimationRootMotion())
+            {
+                return;
+            }
+
+            transform.position += to.normalized * (GetEffectiveMoveSpeed() * Time.deltaTime);
         }
 
         private void TryStartAttack()
@@ -569,6 +685,119 @@ namespace GameFramework.AI
             return useAnimationRootMotionForMovement && animator != null;
         }
 
+        /// <summary>
+        /// 计算期望朝向：使用 NavMesh 且有路径时朝向下一个路径拐点（绕开障碍），
+        /// 否则朝向传入的回退方向（通常是目标方向）。
+        /// </summary>
+        private Vector3 GetSteerDirection(Vector3 fallbackDir)
+        {
+            if (UsingAgent && _agent.hasPath)
+            {
+                Vector3 steer = _agent.steeringTarget - transform.position;
+                steer.y = 0f;
+                if (steer.sqrMagnitude > 0.04f)
+                {
+                    return steer;
+                }
+            }
+
+            return fallbackDir;
+        }
+
+        private void SetupSkillCaster()
+        {
+            _skillCaster = GetComponent<SkillCaster>();
+#if UNITY_EDITOR
+            if (useSkills && _skillCaster == null)
+            {
+                Debug.LogWarning($"{name}: 已启用技能，但未找到 SkillCaster，技能将不会施放。", this);
+            }
+#endif
+        }
+
+        private void SetupAgent()
+        {
+            if (!useNavMeshAgent)
+            {
+                return;
+            }
+
+            _agent = GetComponent<NavMeshAgent>();
+            if (_agent == null)
+            {
+                _agent = gameObject.AddComponent<NavMeshAgent>();
+            }
+
+            _agent.speed = GetEffectiveMoveSpeed();
+            _agent.stoppingDistance = stoppingDistance;
+            _agent.angularSpeed = 720f;
+            _agent.acceleration = 40f;
+            // 旋转由 FaceToTarget 手动处理，保证攻击朝向精确。
+            _agent.updateRotation = false;
+            // 根运动模式：位移交给动画（updatePosition=false），代理只用于寻路方向；
+            // 非根运动模式：代理直接驱动位移（updatePosition=true）。
+            _agent.updatePosition = !useAnimationRootMotionForMovement;
+
+            // NavMeshAgent 与非 kinematic 刚体会争抢位置，改为 kinematic 让代理独占位移。
+            if (_rigidbody != null)
+            {
+                _rigidbody.isKinematic = true;
+            }
+        }
+
+        /// <summary>
+        /// 枪声警戒回调：听到范围内枪声且尚未发现玩家时，前往枪声点侦查。
+        /// </summary>
+        private void HandleGunshotAlert(Vector3 origin)
+        {
+            if (!respondToGunshots || _isDead || _stats == null || _stats.IsDead)
+            {
+                return;
+            }
+
+            // 已发现玩家时无需侦查（直接追击优先）。
+            if (_hasDetectedTarget)
+            {
+                return;
+            }
+
+            if (Vector3.Distance(transform.position, origin) > hearingRadius)
+            {
+                return;
+            }
+
+            _investigatePosition = origin;
+            _investigateUntil = Time.time + Mathf.Max(0.5f, investigateDuration);
+            TriggerDetect();
+        }
+
+        /// <summary>
+        /// 在技能范围内尝试施放敌人技能。返回是否成功施放（成功则锁定动作）。
+        /// </summary>
+        private bool TryCastSkill(float distanceToTarget)
+        {
+            if (_skillCaster == null || _isAttackInProgress || _isDead || _stats == null || _stats.IsDead)
+            {
+                return false;
+            }
+
+            if (distanceToTarget > skillRange)
+            {
+                return false;
+            }
+
+            // TryCast 内部处理冷却与目标；失败（冷却中/无目标）则回退普通攻击。
+            if (!_skillCaster.TryCast(enemySkillType))
+            {
+                return false;
+            }
+
+            _isAttackInProgress = true;
+            _attackLockUntilTime = Time.time + Mathf.Max(0.15f, skillCastLockDuration);
+            PlayAttack();
+            return true;
+        }
+
         private float GetEffectiveMoveSpeed()
         {
             if (useStatusMoveSpeed && _stats != null)
@@ -614,6 +843,7 @@ namespace GameFramework.AI
                 return;
             }
 
+            // 根运动开关独立于 NavMesh：开启根运动时，位移由动画驱动（避免滑步）。
             animator.applyRootMotion = useAnimationRootMotionForMovement;
         }
 

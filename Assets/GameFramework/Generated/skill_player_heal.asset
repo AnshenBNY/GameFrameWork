@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   skillId: skill_player_heal
   displayName: Self Heal
-  skillType: 0
+  skillType: 1
   targetMode: 0
   cooldown: 8
   energyCost: 0

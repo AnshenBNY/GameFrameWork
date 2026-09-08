@@ -227,6 +227,14 @@ MonoBehaviour:
     m_Bits: 4294967295
   useCombatLayerDefaults: 1
   attackEventFallbackDuration: 1.1
+  useNavMeshAgent: 0
+  respondToGunshots: 1
+  hearingRadius: 28
+  investigateDuration: 6
+  useSkills: 0
+  enemySkillType: 0
+  skillRange: 4
+  skillCastLockDuration: 1.2
   animator: {fileID: 0}
   animationDriveMode: 0
   idleStateName: Idle
