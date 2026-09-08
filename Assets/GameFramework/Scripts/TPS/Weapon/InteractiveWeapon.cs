@@ -1,9 +1,16 @@
 ﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using GameFramework.Core;
 using GameFramework.TPS.UI;
+using GameFramework.TPS.Player;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.Weapon
+{
 
 // This class corresponds to any in-game weapon interactions.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "InteractiveWeapon")]
 public class InteractiveWeapon : MonoBehaviour
 {
 	public string label;                                      // The weapon name. Same name will treat weapons as same regardless game object's name.
@@ -88,26 +95,24 @@ public class InteractiveWeapon : MonoBehaviour
 
 	private bool TryInitializeDependencies()
 	{
-		player = GameObject.FindGameObjectWithTag("Player");
-		if (player == null)
+		RuntimeContext context = RuntimeContext.Instance;
+		if (context == null)
 		{
 			return false;
 		}
 
-		playerInventory = player.GetComponent<ShootBehaviour>();
-		if (playerInventory == null)
+		if (!context.TryGetPlayer(out player, out playerInventory))
 		{
 			return false;
 		}
 
-		weaponHud = UIManager.GetWeaponUIManager();
+		weaponHud = context.WeaponUIManager;
 		if (weaponHud == null)
 		{
 			return false;
 		}
 
-		GameObject pickupHudGo = GameObject.Find("PickupHUD");
-		pickupHUD = pickupHudGo != null ? pickupHudGo.transform : null;
+		pickupHUD = context.PickupHud;
 		if (pickupHUD == null)
 		{
 			return false;
@@ -327,4 +332,5 @@ public class InteractiveWeapon : MonoBehaviour
 	{
 		weaponHud.UpdateWeaponHUD(sprite, mag, fullMag, totalBullets);
 	}
+}
 }

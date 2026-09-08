@@ -26,6 +26,7 @@ namespace GameFramework.AI
 
         [Header("目标")]
         [SerializeField] private Transform target;
+        [Tooltip("未手动指定 target 时，从 RuntimeContext 获取玩家。")]
         [SerializeField] private string targetTag = "Player";
         [SerializeField] private float targetRefreshInterval = 0.5f;
 
@@ -184,6 +185,12 @@ namespace GameFramework.AI
             }
 
             PlayState(_idleHash, true);
+            TryResolveTargetFromContext();
+        }
+
+        private void Start()
+        {
+            TryResolveTargetFromContext();
         }
 
         private void OnEnable()
@@ -308,13 +315,26 @@ namespace GameFramework.AI
         private void RefreshTarget()
         {
             _nextRefreshTime = Time.time + Mathf.Max(0.1f, targetRefreshInterval);
-            if (string.IsNullOrEmpty(targetTag))
+            if (target != null)
             {
                 return;
             }
 
-            GameObject go = GameObject.FindGameObjectWithTag(targetTag);
-            target = go != null ? go.transform : null;
+            TryResolveTargetFromContext();
+        }
+
+        private void TryResolveTargetFromContext()
+        {
+            if (target != null)
+            {
+                return;
+            }
+
+            RuntimeContext context = RuntimeContext.Instance;
+            if (context != null && context.PlayerTransform != null)
+            {
+                target = context.PlayerTransform;
+            }
         }
 
         private void FaceToTarget(Vector3 toTarget)

@@ -2,11 +2,17 @@
 using GameFramework.Combat;
 using GameFramework.Core;
 using GameFramework.Stats;
+using GameFramework.TPS.Weapon;
 using UnityEngine;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.Player
+{
 
 // ShootBehaviour inherits from GenericBehaviour. This class corresponds to shoot/reload/change/add/drop weapons behaviour.
 // Due to its characteristics, this behaviour will always be called regardless the current state (including active and overriding ones).
 // There is no need to use behaviour manager to watch it. Use direct call to all the MonoBehaviour basic functions.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "ShootBehaviour")]
 public class ShootBehaviour : GenericBehaviour
 {
 	public string shootButton = "Fire1",                           // Default shoot weapon button.
@@ -556,4 +562,5 @@ public class ShootBehaviour : GenericBehaviour
 			leftArm.localEulerAngles += LeftArmShortAim;
 		}
 	}
+}
 }

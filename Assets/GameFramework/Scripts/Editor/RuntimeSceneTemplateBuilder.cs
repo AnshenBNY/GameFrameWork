@@ -1,6 +1,9 @@
 using GameFramework.Core;
 using GameFramework.Combat;
 using GameFramework.Level;
+using GameFramework.TPS.ThirdPersonCamera;
+using GameFramework.TPS.Player;
+using GameFramework.TPS.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -168,12 +171,12 @@ namespace GameFramework.Editor
             cam.nearClipPlane = 0.01f;
             cameraGo.AddComponent<AudioListener>();
 
-            var orbit = cameraGo.AddComponent<global::ThirdPersonOrbitCam>();
+            var orbit = cameraGo.AddComponent<ThirdPersonOrbitCam>();
             orbit.player = player.transform;
             orbit.maxVerticalAngle = 60f;
             orbit.minVerticalAngle = -60f;
 
-            var playerBasic = player.GetComponent<global::BasicBehaviour>();
+            var playerBasic = player.GetComponent<BasicBehaviour>();
             if (playerBasic != null)
             {
                 playerBasic.playerCamera = cameraGo.transform;
@@ -240,6 +243,7 @@ namespace GameFramework.Editor
             }
 
             GameObject root = new GameObject("GF_Root");
+            RuntimeContext runtimeContext = root.AddComponent<RuntimeContext>();
             root.AddComponent<CursorStateController>();
             root.AddComponent<CombatRuntimeConfigProvider>();
             root.AddComponent<DamageNumberPresenter>();
@@ -269,6 +273,16 @@ namespace GameFramework.Editor
             resultSo.FindProperty("levelManager").objectReferenceValue = manager;
             resultSo.FindProperty("player").objectReferenceValue = player;
             resultSo.ApplyModifiedPropertiesWithoutUndo();
+
+            SerializedObject contextSo = new SerializedObject(runtimeContext);
+            contextSo.FindProperty("player").objectReferenceValue = player;
+            contextSo.FindProperty("levelManager").objectReferenceValue = manager;
+            GameObject uiRoot = GameObject.Find("UIRoot");
+            if (uiRoot != null)
+            {
+                contextSo.FindProperty("uiManager").objectReferenceValue = uiRoot.GetComponent<UIManager>();
+            }
+            contextSo.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>
@@ -305,7 +319,7 @@ namespace GameFramework.Editor
 
         private static void ConfigurePlayerRuntimeDependencies(GameObject player)
         {
-            global::ShootBehaviour shoot = player.GetComponent<global::ShootBehaviour>();
+            ShootBehaviour shoot = player.GetComponent<ShootBehaviour>();
             if (shoot == null)
             {
                 return;

@@ -1,3 +1,4 @@
+using GameFramework.Core;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -16,14 +17,23 @@ namespace GameFramework.TPS.UI
 
         private void Awake()
         {
-            if (!autoCreateIfMissing)
+            if (autoCreateIfMissing)
             {
-                return;
+                EnsurePickupHud();
+                EnsureGameplayHintHud();
+                EnsureScreenHud();
             }
 
-            EnsurePickupHud();
-            EnsureGameplayHintHud();
-            EnsureScreenHud();
+            RegisterPickupHudWithContext();
+        }
+
+        private void RegisterPickupHudWithContext()
+        {
+            Transform pickup = transform.Find("PickupHUD");
+            if (pickup != null)
+            {
+                RuntimeContext.RegisterPickupHud(pickup);
+            }
         }
 
         private void EnsurePickupHud()

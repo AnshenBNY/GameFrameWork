@@ -1,6 +1,11 @@
 ﻿using UnityEngine;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.FX
+{
 
 // This class ensures that a particle's game object will auto-destroy after its lifetime.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "ParticleSystemAutoDestroy")]
 public class ParticleSystemAutoDestroy : MonoBehaviour
 {
 	private ParticleSystem ps;
@@ -22,4 +27,5 @@ public class ParticleSystemAutoDestroy : MonoBehaviour
 			}
 		}
 	}
+}
 }

@@ -20,11 +20,27 @@ namespace GameFramework.Level
 
         private void Awake()
         {
-            if (levelManager == null)
+            ResolveDependencies();
+        }
+
+        private void ResolveDependencies()
+        {
+            if (levelManager != null)
             {
-                levelManager = FindObjectOfType<LevelManager>();
+                return;
             }
 
+            levelManager = GetComponent<LevelManager>();
+            if (levelManager != null)
+            {
+                return;
+            }
+
+            RuntimeContext context = RuntimeContext.Instance;
+            if (context != null)
+            {
+                context.TryGetLevelManager(out levelManager);
+            }
         }
 
         private void OnEnable()

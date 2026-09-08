@@ -1,81 +1,38 @@
-using System.Collections.Generic;
 using GameFramework.Core;
-using GameFramework.Combat;
-using GameFramework.Stats;
 using UnityEngine;
 
 namespace GameFramework.Level
 {
     /// <summary>
-    /// 关卡管理器（核心）：
-    /// 1. 根据 LevelDefinition 初始化地图、触发器、刷新点。
-    /// 2. 负责关卡级事件通信与流程管理。
-    /// 3. 维护怪物存活数量，并触发关卡完成。
+    /// 关卡管理器（编排层）：
+    /// 协调 RuntimeRegistry / SpawnService / PhaseFlow 完成关卡生命周期。
     /// </summary>
     public class LevelManager : MonoBehaviour
     {
         [Header("配置")]
         [SerializeField] private LevelDefinition currentLevel;
         [SerializeField] private Transform runtimeRoot;
-        [SerializeField] private float deadMonsterDestroyDelay = 0.35f;
 
-        private readonly List<GameObject> _spawnedMonsters = new List<GameObject>();
-        private readonly List<GameObject> _spawnedItems = new List<GameObject>();
-        private readonly List<GameObject> _runtimeTriggers = new List<GameObject>();
-
-        private GameObject _spawnedMap;
-        private int _currentPhaseIndex = -1;
-        private int _remainingWavesInPhase = 0;
-        private string _lastDiedActorName = "(none)";
+        private readonly LevelRuntimeRegistry _registry = new LevelRuntimeRegistry();
+        private readonly LevelSpawnService _spawnService = new LevelSpawnService();
+        private readonly LevelPhaseFlow _phaseFlow = new LevelPhaseFlow();
 
         public LevelDefinition CurrentLevel => currentLevel;
-        public int ActiveMonsterCount => _spawnedMonsters.Count;
-        public int CurrentPhaseIndex => _currentPhaseIndex;
-        public int RemainingWavesInPhase => _remainingWavesInPhase;
-        public bool HasValidPhase => IsCurrentPhaseValid();
-        public string LastDiedActorName => _lastDiedActorName;
+        public int ActiveMonsterCount => _registry.ActiveMonsterCount;
+        public int CurrentPhaseIndex => _phaseFlow.CurrentPhaseIndex;
+        public int RemainingWavesInPhase => _phaseFlow.RemainingWavesInPhase;
+        public bool HasValidPhase => _phaseFlow.IsCurrentPhaseValid(currentLevel);
+        public string LastDiedActorName => _registry.LastDiedActorName;
 
-        public string GetMonsterDebugSnapshot()
+        public string GetMonsterDebugSnapshot() => _registry.GetMonsterDebugSnapshot();
+
+        public LevelPhaseType? CurrentPhaseType => _phaseFlow.GetCurrentPhaseType(currentLevel);
+
+        public string CurrentPhaseId => _phaseFlow.GetCurrentPhaseId(currentLevel);
+
+        private void Awake()
         {
-            if (_spawnedMonsters.Count == 0)
-            {
-                return "(empty)";
-            }
-
-            List<string> names = new List<string>(_spawnedMonsters.Count);
-            for (int i = 0; i < _spawnedMonsters.Count; i++)
-            {
-                GameObject go = _spawnedMonsters[i];
-                names.Add(go != null ? go.name : "null");
-            }
-
-            return string.Join(", ", names);
-        }
-
-        public LevelPhaseType? CurrentPhaseType
-        {
-            get
-            {
-                if (!IsCurrentPhaseValid())
-                {
-                    return null;
-                }
-
-                return currentLevel.phases[_currentPhaseIndex].phaseType;
-            }
-        }
-
-        public string CurrentPhaseId
-        {
-            get
-            {
-                if (!IsCurrentPhaseValid())
-                {
-                    return string.Empty;
-                }
-
-                return currentLevel.phases[_currentPhaseIndex].phaseId;
-            }
+            RuntimeContext.RegisterLevelManager(this);
         }
 
         private void OnEnable()
@@ -113,16 +70,11 @@ namespace GameFramework.Level
             }
 
             Transform root = GetRuntimeRoot();
-
-            if (currentLevel.mapPrefab != null)
-            {
-                _spawnedMap = Instantiate(currentLevel.mapPrefab, root);
-            }
-
-            SpawnItems(root);
-            SpawnMonsters(root);
-            CreateTriggers(root);
-            EnterPhase(0);
+            _registry.SetSpawnedMap(_spawnService.SpawnMap(currentLevel, root));
+            _spawnService.SpawnItems(currentLevel, root, _registry);
+            _spawnService.SpawnMonsters(currentLevel, root, _registry);
+            _spawnService.CreateTriggers(currentLevel, root, _registry);
+            _phaseFlow.EnterPhase(currentLevel, 0, CompleteLevel);
 
             GameEventBus.RaiseLevelStarted(currentLevel.levelId);
         }
@@ -147,206 +99,35 @@ namespace GameFramework.Level
             GameEventBus.RaiseLevelFailed(currentLevel.levelId);
         }
 
-        private void SpawnItems(Transform root)
-        {
-            foreach (SpawnPointData spawn in currentLevel.itemSpawnPoints)
-            {
-                if (spawn.prefab == null)
-                {
-                    continue;
-                }
-
-                GameObject go = Instantiate(
-                    spawn.prefab,
-                    spawn.position,
-                    Quaternion.Euler(spawn.eulerAngles),
-                    root);
-                _spawnedItems.Add(go);
-            }
-        }
-
-        private void SpawnMonsters(Transform root)
-        {
-            foreach (SpawnPointData spawn in currentLevel.monsterSpawnPoints)
-            {
-                if (spawn.prefab == null)
-                {
-                    continue;
-                }
-
-                GameObject go = Instantiate(
-                    spawn.prefab,
-                    spawn.position,
-                    Quaternion.Euler(spawn.eulerAngles),
-                    root);
-                EnsureMonsterRuntimeComponents(go);
-
-                _spawnedMonsters.Add(go);
-                GameEventBus.RaiseMonsterSpawned(go);
-            }
-        }
-
-        private static void EnsureMonsterRuntimeComponents(GameObject monster)
-        {
-            if (monster == null)
-            {
-                return;
-            }
-
-            if (monster.GetComponent<ActorStatsComponent>() == null)
-            {
-                monster.AddComponent<ActorStatsComponent>();
-            }
-
-            if (monster.GetComponent<EnemySimpleHealthBar>() == null)
-            {
-                monster.AddComponent<EnemySimpleHealthBar>();
-            }
-
-            if (monster.GetComponent<FactionComponent>() == null)
-            {
-                monster.AddComponent<FactionComponent>();
-            }
-            FactionComponent faction = monster.GetComponent<FactionComponent>();
-            if (faction != null)
-            {
-                faction.SetFaction(FactionType.Enemy);
-            }
-
-            Animator animator = monster.GetComponent<Animator>();
-            if (monster.GetComponent<GameFramework.AI.BasicEnemyController>() == null)
-            {
-                monster.AddComponent<GameFramework.AI.BasicEnemyController>();
-            }
-
-            if (animator == null)
-            {
-                // 无 Animator 的敌人沿用最小功能：仅有血量与阵营，不做动画驱动。
-                return;
-            }
-        }
-
-        private void CreateTriggers(Transform root)
-        {
-            foreach (LevelTriggerData triggerData in currentLevel.triggers)
-            {
-                GameObject triggerGo = new GameObject($"Trigger_{triggerData.triggerId}");
-                triggerGo.transform.SetParent(root);
-                triggerGo.transform.position = triggerData.position;
-
-                BoxCollider box = triggerGo.AddComponent<BoxCollider>();
-                box.isTrigger = true;
-                box.size = triggerData.size;
-
-                LevelRuntimeTrigger runtimeTrigger = triggerGo.AddComponent<LevelRuntimeTrigger>();
-                runtimeTrigger.Initialize(triggerData.triggerId);
-
-                _runtimeTriggers.Add(triggerGo);
-            }
-        }
-
         private void HandleActorDied(GameObject actor)
         {
-            if (actor == null)
+            if (!_registry.TryTrackActorDeath(actor))
             {
                 return;
             }
 
-            _lastDiedActorName = actor.name;
-
-            GameObject deadRoot = actor.transform.root.gameObject;
-            bool removed = _spawnedMonsters.Remove(actor);
-            if (!removed)
+            if (_registry.ActiveMonsterCount == 0)
             {
-                removed = _spawnedMonsters.Remove(deadRoot);
-            }
-
-            if (!removed)
-            {
-                for (int i = _spawnedMonsters.Count - 1; i >= 0; i--)
-                {
-                    GameObject monster = _spawnedMonsters[i];
-                    if (monster == null)
-                    {
-                        _spawnedMonsters.RemoveAt(i);
-                        continue;
-                    }
-
-                    if (actor.transform.IsChildOf(monster.transform) || deadRoot.transform.IsChildOf(monster.transform))
-                    {
-                        _spawnedMonsters.RemoveAt(i);
-                        removed = true;
-                        break;
-                    }
-                }
-            }
-
-            if (removed)
-            {
-                if (_spawnedMonsters.Count == 0)
-                {
-                    TryAdvanceByMonsterClear();
-                }
+                _phaseFlow.TryAdvanceByMonsterClear(
+                    currentLevel,
+                    CompleteLevel,
+                    () => _phaseFlow.AdvancePhase(currentLevel, CompleteLevel),
+                    () => _spawnService.SpawnMonsters(currentLevel, GetRuntimeRoot(), _registry));
             }
         }
 
         private void HandleTriggerEntered(string triggerId, GameObject actor)
         {
-            if (!IsCurrentPhaseValid())
-            {
-                return;
-            }
-
-            LevelPhaseData phase = currentLevel.phases[_currentPhaseIndex];
-            if (phase.phaseType != LevelPhaseType.ReachTrigger)
-            {
-                return;
-            }
-
-            if (!string.IsNullOrEmpty(phase.requiredTriggerId) && phase.requiredTriggerId == triggerId)
-            {
-                AdvancePhase();
-            }
+            _phaseFlow.TryHandleTrigger(
+                currentLevel,
+                triggerId,
+                () => _phaseFlow.AdvancePhase(currentLevel, CompleteLevel));
         }
 
         private void ClearRuntime()
         {
-            if (_spawnedMap != null)
-            {
-                Destroy(_spawnedMap);
-                _spawnedMap = null;
-            }
-
-            foreach (GameObject go in _spawnedMonsters)
-            {
-                if (go != null)
-                {
-                    Destroy(go);
-                }
-            }
-            _spawnedMonsters.Clear();
-
-            foreach (GameObject go in _spawnedItems)
-            {
-                if (go != null)
-                {
-                    Destroy(go);
-                }
-            }
-            _spawnedItems.Clear();
-
-            foreach (GameObject go in _runtimeTriggers)
-            {
-                if (go != null)
-                {
-                    Destroy(go);
-                }
-            }
-            _runtimeTriggers.Clear();
-
-            _currentPhaseIndex = -1;
-            _remainingWavesInPhase = 0;
-            _lastDiedActorName = "(none)";
+            _registry.ClearAll();
+            _phaseFlow.Reset();
         }
 
         private Transform GetRuntimeRoot()
@@ -356,84 +137,17 @@ namespace GameFramework.Level
                 return runtimeRoot;
             }
 
-            GameObject root = GameObject.Find("LevelRuntimeRoot");
-            if (root == null)
+            Transform existing = transform.Find("LevelRuntimeRoot");
+            if (existing != null)
             {
-                root = new GameObject("LevelRuntimeRoot");
+                runtimeRoot = existing;
+                return runtimeRoot;
             }
 
+            GameObject root = new GameObject("LevelRuntimeRoot");
+            root.transform.SetParent(transform, false);
             runtimeRoot = root.transform;
             return runtimeRoot;
-        }
-
-        private void EnterPhase(int index)
-        {
-            if (currentLevel == null)
-            {
-                return;
-            }
-
-            if (currentLevel.phases == null || currentLevel.phases.Count == 0)
-            {
-                // 未配置阶段时，回退到旧逻辑：清怪即通关。
-                _currentPhaseIndex = -1;
-                return;
-            }
-
-            if (index < 0 || index >= currentLevel.phases.Count)
-            {
-                CompleteLevel();
-                return;
-            }
-
-            _currentPhaseIndex = index;
-            LevelPhaseData phase = currentLevel.phases[_currentPhaseIndex];
-            _remainingWavesInPhase = Mathf.Max(1, phase.requiredWaveCount);
-
-            if (phase.phaseType == LevelPhaseType.Complete)
-            {
-                CompleteLevel();
-            }
-        }
-
-        private void AdvancePhase()
-        {
-            EnterPhase(_currentPhaseIndex + 1);
-        }
-
-        private void TryAdvanceByMonsterClear()
-        {
-            if (!IsCurrentPhaseValid())
-            {
-                // 兼容无阶段配置模式：清怪即通关。
-                CompleteLevel();
-                return;
-            }
-
-            LevelPhaseData phase = currentLevel.phases[_currentPhaseIndex];
-            if (phase.phaseType != LevelPhaseType.DefendWaves)
-            {
-                return;
-            }
-
-            _remainingWavesInPhase--;
-            if (_remainingWavesInPhase <= 0)
-            {
-                AdvancePhase();
-            }
-            else
-            {
-                // 当前简化策略：复用原刷新点再刷一波。
-                SpawnMonsters(GetRuntimeRoot());
-            }
-        }
-
-        private bool IsCurrentPhaseValid()
-        {
-            return currentLevel != null
-                   && currentLevel.phases != null
-                   && _currentPhaseIndex >= 0
-                   && _currentPhaseIndex < currentLevel.phases.Count;
         }
     }
 }

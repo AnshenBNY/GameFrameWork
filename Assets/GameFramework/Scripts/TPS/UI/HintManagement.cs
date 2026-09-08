@@ -1,8 +1,14 @@
 ﻿using System.Collections;
 using UnityEngine;
+using GameFramework.Core;
 using GameFramework.TPS.UI;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.Demo
+{
 
 // This class is created for the example scene. There is no support for this script.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "HintManagement")]
 public class HintManagement : MonoBehaviour
 {
 	public string message = "";
@@ -31,7 +37,7 @@ public class HintManagement : MonoBehaviour
 
 	private bool TryInitializeDependencies()
 	{
-		player = GameObject.FindGameObjectWithTag("Player");
+		player = RuntimeContext.Instance != null ? RuntimeContext.Instance.Player : null;
 		if (player == null)
 		{
 			return false;
@@ -103,4 +109,5 @@ public class HintManagement : MonoBehaviour
 			UIEventChannel.RequestShowHint(message2);
 		}
 	}
+}
 }

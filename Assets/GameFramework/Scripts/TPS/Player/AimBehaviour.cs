@@ -1,7 +1,12 @@
 ﻿using UnityEngine;
 using System.Collections;
+using UnityEngine.Scripting.APIUpdating;
+
+namespace GameFramework.TPS.Player
+{
 
 // AimBehaviour inherits from GenericBehaviour. This class corresponds to aim and strafe behaviour.
+[MovedFrom(true, sourceNamespace: "", sourceAssembly: "Assembly-CSharp", sourceClassName: "AimBehaviour")]
 public class AimBehaviour : GenericBehaviour
 {
 	public string aimButton = "Aim", shoulderButton = "Aim Shoulder";     // Default aim and switch shoulders buttons.
@@ -196,4 +201,5 @@ public class AimBehaviour : GenericBehaviour
 										 crosshair.width, crosshair.height), crosshair);
 		}
 	}
+}
 }
