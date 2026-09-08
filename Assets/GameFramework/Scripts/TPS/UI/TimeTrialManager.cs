@@ -2,7 +2,7 @@
 using UnityEngine.UI;
 using UnityEngine.Scripting.APIUpdating;
 
-namespace GameFramework.TPS.Demo
+namespace GameFramework.TPS.UI
 {
 
 // This class is created for the example scene. There is no support for this script.
